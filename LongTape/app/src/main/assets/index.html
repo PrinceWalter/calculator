@@ -115,6 +115,9 @@ button{font-family:inherit}
 .cal .d.sel{background:var(--accent);color:var(--accent-fg)}
 .cal .d.sel::after{background:var(--accent-fg)}
 .calnote{font:500 .78rem var(--f-ui);color:var(--muted);text-align:center}
+.app.kb-on .pad{display:none}
+.app.kb-on .display{padding-bottom:8px}
+.kbhint{font:600 .78rem var(--f-ui);color:var(--muted);text-align:center;padding:6px 0 2px}
 .opts{display:flex;flex-direction:column;gap:6px}
 .opt{display:flex;align-items:center;justify-content:space-between;border:0;border-radius:12px;padding:12px 14px;background:var(--bg);color:var(--fg);font:600 .95rem var(--f-ui);cursor:pointer;text-align:left}
 .opt.sel{outline:2px solid var(--b0);color:var(--b0)}
@@ -170,6 +173,7 @@ button{font-family:inherit}
   <section class="display" id="display" aria-live="polite">
     <div class="expr empty" id="expr" contenteditable="true" inputmode="none" spellcheck="false" autocorrect="off" autocapitalize="off" role="textbox" aria-label="Calculation"></div>
     <div class="preview" id="preview"></div>
+    <div class="kbhint" id="kbhint" hidden>Use your keyboard's clipboard to paste. Press Back for the keypad.</div>
   </section>
 
   <div class="pad">
@@ -395,7 +399,52 @@ function fwdDelete(){
   justEval = false;
   expr = expr.slice(0,a) + expr.slice(a === b ? a + 1 : b); selA = selB = a; render();
 }
-ed.addEventListener("beforeinput", e => e.preventDefault());
+/* Keyboard mode: the phone keyboard (with its clipboard) types into the calculation.
+   Whatever it inserts is cleaned up into a calculation right after. */
+let kbMode = false, composing = false, kbBaseH = 0, kbShrunk = false;
+ed.addEventListener("beforeinput", e => { if (!kbMode) e.preventDefault(); });
+function normCh(c){
+  if (/[\d.+−×÷^()%!πe]/.test(c)) return c;
+  if (c === "-" || c === "–" || c === "—") return "−";
+  if (c === "*" || c === "x" || c === "X") return "×";
+  if (c === "/" || c === ":") return "÷";
+  return "";
+}
+function rebuildFromDom(){
+  const txt = ed.textContent || "", sel = getSelection();
+  let caretD = txt.length;
+  if (sel.rangeCount && (sel.focusNode === ed || ed.contains(sel.focusNode))) caretD = dispOffset(sel.focusNode, sel.focusOffset);
+  let raw = "", caret = 0;
+  for (let i = 0; i < txt.length; i++){ const c = normCh(txt[i]); raw += c; if (i < caretD) caret += c.length; }
+  expr = raw; selA = selB = caret; justEval = false;
+  render();
+}
+ed.addEventListener("compositionstart", () => { composing = true; });
+ed.addEventListener("compositionend", () => { composing = false; if (kbMode) rebuildFromDom(); });
+ed.addEventListener("input", () => { if (kbMode && !composing) rebuildFromDom(); });
+function enterKbMode(){
+  kbMode = true; kbShrunk = false; kbBaseH = innerHeight;
+  ed.setAttribute("inputmode", "text");
+  ed.blur();
+  ed.focus({ preventScroll: true });
+  render();
+  try { if (window.AndroidBridge && window.AndroidBridge.showKeyboard) window.AndroidBridge.showKeyboard(); } catch(e){}
+}
+function exitKbMode(){
+  if (!kbMode) return;
+  kbMode = false; composing = false;
+  $("app").classList.remove("kb-on"); $("kbhint").hidden = true;
+  ed.setAttribute("inputmode", "none");
+  try { if (window.AndroidBridge && window.AndroidBridge.hideKeyboard) window.AndroidBridge.hideKeyboard(); } catch(e){}
+  ed.blur();
+  setTimeout(() => { ed.focus({ preventScroll: true }); render(); }, 0);
+}
+/* The keyboard opening shrinks the screen; closing it (e.g. Back) restores it */
+addEventListener("resize", () => {
+  if (!kbMode) return;
+  if (innerHeight < kbBaseH * 0.8){ if (!kbShrunk){ kbShrunk = true; $("app").classList.add("kb-on"); $("kbhint").hidden = false; render(); } }
+  else if (kbShrunk && innerHeight >= kbBaseH * 0.9) exitKbMode();
+});
 ed.addEventListener("drop", e => e.preventDefault());
 function cleanPaste(t){
   t = t.trim().replace(/[,\s]/g, "");
@@ -499,7 +548,7 @@ function mkKey([label, cls, fn, aria]){
   if (label.startsWith("<svg")) b.innerHTML = label; else b.textContent = label;
   if (!fn) fn = () => digit(label);
   if (aria) b.setAttribute("aria-label", aria);
-  b.addEventListener("pointerdown", e => { e.preventDefault(); haptic(); });
+  b.addEventListener("pointerdown", e => { e.preventDefault(); haptic(); if (kbMode) exitKbMode(); });
   b.addEventListener("click", () => {
     if (fn === equals) equals();
     else if (fn === clearAll){ clearAll(); if (ed !== document.activeElement) ed.focus({ preventScroll:true }); render(); }
@@ -512,6 +561,7 @@ MAIN.forEach(k => keysEl.insertBefore(mkKey(k), $("history")));
 document.addEventListener("keydown", e => {
   if (e.ctrlKey || e.metaKey || e.altKey) return;   // copy, paste and select-all work normally
   if (e.target.tagName === "INPUT" || !$("sheet").hidden || !$("dateSheet").hidden) return;
+  if (kbMode && e.key !== "Enter") return;
   const k = e.key; let f = null;
   if (/^\d$/.test(k)) f = () => digit(k);
   else if (k===".") f = dot;
@@ -567,7 +617,7 @@ function copyFromDisplay(){
 (() => {
   let timer = null, sx = 0, sy = 0, fired = false, moved = false, prevA = 0, prevB = 0, wasFocused = false;
   const open = () => { timer = null; fired = true; haptic(); ed.focus({ preventScroll:true });
-    const items = [["Paste", pasteFromClipboard]];
+    const items = [["Paste", pasteFromClipboard], ["Clipboard", enterKbMode]];
     if (expr) items.push([selA !== selB ? "Copy" : "Copy all", copyFromDisplay]);
     showMenu(sx, sy, items); };
   ed.addEventListener("pointerdown", e => {
@@ -763,7 +813,7 @@ function renderFoot(){
   } else f.innerHTML = "";
 }
 function setHistIcon(open){ $("histBtn").innerHTML = open ? ICON_PAD : ICON_HIST; $("histBtn").setAttribute("aria-label", open ? "Show keypad" : "Show history"); }
-function openHistory(){ $("history").hidden=false; $("app").classList.add("hist-open"); $("histTools").hidden=false; setHistIcon(true); confirming=false; renderHistory(); }
+function openHistory(){ exitKbMode(); $("history").hidden=false; $("app").classList.add("hist-open"); $("histTools").hidden=false; setHistIcon(true); confirming=false; renderHistory(); }
 function closeHistory(){ $("history").hidden=true; $("app").classList.remove("hist-open"); $("histTools").hidden=true; closeSearch(); clearFilters(); setHistIcon(false); }
 function clearFilters(){ query = ""; $("q").value = ""; dateF = null; $("searchBtn").classList.remove("on"); $("dateBtn").classList.remove("on"); }
 
@@ -823,6 +873,7 @@ let tt; function toast(msg){ const t=$("toast"); t.textContent=msg; t.classList.
 
 /* Android back button: close the history first, then leave the app */
 window.__onBack = () => {
+  if (kbMode){ exitKbMode(); return true; }
   if (!$("sheet").hidden){ closeLabel(); return true; }
   if (!$("dateSheet").hidden){ $("dateSheet").hidden = true; return true; }
   if (!$("qwrap").hidden){ closeSearch(); return true; }

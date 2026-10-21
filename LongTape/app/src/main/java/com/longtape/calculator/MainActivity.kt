@@ -6,6 +6,7 @@ import android.content.ClipboardManager
 import android.content.res.Configuration
 import android.os.Bundle
 import android.view.HapticFeedbackConstants
+import android.view.inputmethod.InputMethodManager
 import android.webkit.JavascriptInterface
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
@@ -101,6 +102,20 @@ class MainActivity : AppCompatActivity() {
             val clip = cm.primaryClip ?: return ""
             if (clip.itemCount == 0) return ""
             return clip.getItemAt(0).coerceToText(this@MainActivity)?.toString() ?: ""
+        }
+
+        // Open / close the phone keyboard (used for the keyboard's clipboard)
+        @JavascriptInterface
+        fun showKeyboard() {
+            web.post {
+                web.requestFocus()
+                getSystemService(InputMethodManager::class.java).showSoftInput(web, InputMethodManager.SHOW_IMPLICIT)
+            }
+        }
+
+        @JavascriptInterface
+        fun hideKeyboard() {
+            web.post { getSystemService(InputMethodManager::class.java).hideSoftInputFromWindow(web.windowToken, 0) }
         }
 
         // A short keypad tick, the same feel as the phone's own keyboard
