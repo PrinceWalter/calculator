@@ -58,7 +58,7 @@ button{font-family:inherit}
 .n{white-space:nowrap}
 .expr .b0{color:var(--b0)} .expr .b1{color:var(--b1)} .expr .b2{color:var(--b2)}
 .expr .un{color:var(--muted)}
-.expr.empty:empty::before{content:"0";color:var(--muted)}
+.expr.empty{min-width:1px}
 .preview{flex:0 0 auto;font-family:var(--f-num);font-weight:300;font-size:min(30px, 7vw);color:var(--muted);text-align:right;min-height:1.3em;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
 .preview.err{color:var(--danger);font-family:var(--f-ui);font-size:1.05rem;font-weight:600}
@@ -488,13 +488,24 @@ function copyFromDisplay(){
 }
 /* Long-press the calculation for Paste / Copy (a tap still places the cursor) */
 (() => {
-  let timer = null, sx = 0, sy = 0;
-  const open = () => { timer = null; haptic(); ed.focus({ preventScroll:true });
+  let timer = null, sx = 0, sy = 0, fired = false, moved = false, prevA = 0, prevB = 0, wasFocused = false;
+  const open = () => { timer = null; fired = true; haptic(); ed.focus({ preventScroll:true });
     const items = [["Paste", pasteFromClipboard]];
     if (expr) items.push([selA !== selB ? "Copy" : "Copy all", copyFromDisplay]);
     showMenu(sx, sy, items); };
-  ed.addEventListener("pointerdown", e => { sx = e.clientX; sy = e.clientY; clearTimeout(timer); timer = setTimeout(open, 450); });
-  ed.addEventListener("pointermove", e => { if (timer && Math.hypot(e.clientX-sx, e.clientY-sy) > 10){ clearTimeout(timer); timer = null; } });
+  ed.addEventListener("pointerdown", e => {
+    sx = e.clientX; sy = e.clientY; fired = false; moved = false;
+    prevA = selA; prevB = selB; wasFocused = document.activeElement === ed && $("pop").hidden;
+    clearTimeout(timer); timer = setTimeout(open, 450);
+  });
+  ed.addEventListener("pointermove", e => { if (Math.hypot(e.clientX-sx, e.clientY-sy) > 10){ moved = true; clearTimeout(timer); timer = null; } });
+  ed.addEventListener("click", () => {
+    if (fired || moved) return;
+    setTimeout(() => {   // let the cursor settle where the finger landed
+      const onCursor = wasFocused && prevA === prevB && selA === selB && selA === prevA;
+      if (!expr || onCursor) open();
+    }, 60);
+  });
   ["pointerup","pointercancel"].forEach(t => ed.addEventListener(t, () => { clearTimeout(timer); timer = null; }));
   ed.addEventListener("contextmenu", e => { e.preventDefault(); if (timer){ clearTimeout(timer); open(); } else if ($("pop").hidden){ sx = e.clientX; sy = e.clientY; open(); } });
 })();
