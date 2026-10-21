@@ -1,0 +1,47 @@
+name: Build APK
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+defaults:
+  run:
+    working-directory: LongTape
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Build the app
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon
+          cp app/build/outputs/apk/release/app-release.apk LongTape.apk
+
+      - name: Keep the APK with this build
+        uses: actions/upload-artifact@v4
+        with:
+          name: LongTape-apk
+          path: LongTape/LongTape.apk
+
+      - name: Publish it as a download
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "v1.0.${{ github.run_number }}" LongTape.apk \
+            --title "Long Tape 1.0.${{ github.run_number }}" \
+            --notes "Open this page on your Android phone and tap LongTape.apk to install." \
+            --latest
