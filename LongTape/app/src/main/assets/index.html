@@ -88,6 +88,26 @@ button{font-family:inherit}
 .hx{color:var(--fg);font-size:clamp(.88rem,1.9vh,1rem);letter-spacing:-.01em;text-align:right;overflow-wrap:normal;line-height:1.28}
 .hr{color:var(--b0);font-size:clamp(1.08rem,2.5vh,1.25rem);letter-spacing:-.01em;text-align:right;overflow-wrap:anywhere}
 .hempty{margin:auto 0;color:var(--muted);text-align:center;font-size:.92rem;line-height:1.5;padding:0 8px}
+.bar .tools{display:flex;align-items:center;gap:4px;flex:1;min-width:0}
+.ib.on{color:var(--b0)}
+.ib.on::after{content:"";position:absolute;top:9px;right:9px;width:7px;height:7px;border-radius:50%;background:var(--b0)}
+.ib{position:relative}
+.qwrap{flex:1;min-width:0;display:flex;align-items:center;background:var(--key);border-radius:999px;padding:0 4px 0 14px;height:42px}
+.qwrap input{flex:1;min-width:0;background:none;border:0;color:var(--fg);font:600 .95rem var(--f-ui);outline:none;padding:0}
+.qwrap input::placeholder{color:var(--muted);font-weight:500}
+.qwrap input::-webkit-search-cancel-button{display:none}
+.qx{flex:0 0 auto;width:34px;height:34px;border:0;border-radius:50%;background:none;color:var(--muted);display:grid;place-items:center;cursor:pointer}
+.qx svg{width:18px;height:18px}
+.hfilter{display:flex;align-items:center;gap:8px;justify-content:space-between;font:600 .74rem var(--f-ui);color:var(--muted);padding:2px 0 6px;border-bottom:1px dashed var(--line)}
+.hfilter span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hfilter button{flex:0 0 auto;border:0;background:var(--key);color:var(--fg);border-radius:999px;padding:5px 10px;font:700 .72rem var(--f-ui);cursor:pointer}
+.hlabel mark{background:color-mix(in srgb, var(--b2) 30%, transparent);color:inherit;border-radius:3px;padding:0 1px}
+.opts{display:flex;flex-direction:column;gap:6px}
+.opt{display:flex;align-items:center;justify-content:space-between;border:0;border-radius:12px;padding:12px 14px;background:var(--bg);color:var(--fg);font:600 .95rem var(--f-ui);cursor:pointer;text-align:left}
+.opt.sel{outline:2px solid var(--b0);color:var(--b0)}
+.range{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.range label{display:flex;flex-direction:column;gap:4px;font:700 .72rem var(--f-ui);color:var(--muted);letter-spacing:.04em;text-transform:uppercase;min-width:0}
+.range input{padding:10px;font-size:.9rem;min-width:0}
 .hfoot{display:flex;flex-direction:column;align-items:center;gap:8px}
 .pill{border:0;border-radius:999px;padding:14px 26px;background:var(--key2);color:var(--fg);font:700 1rem var(--f-ui);cursor:pointer;max-width:100%}
 .pill.danger{background:var(--danger);color:#fff}
@@ -101,7 +121,7 @@ button{font-family:inherit}
 .sheet .card{width:min(360px,100%);background:var(--key);border-radius:20px;padding:18px;display:flex;flex-direction:column;gap:12px;box-shadow:0 12px 32px rgb(0 0 0 / .4)}
 .sheet h2{margin:0;font:700 1.05rem var(--f-ui);color:var(--fg)}
 .sheet .calc{font:400 .9rem var(--f-num);color:var(--muted);overflow-wrap:anywhere}
-.sheet input{width:100%;box-sizing:border-box;background:var(--bg);color:var(--fg);border:1.5px solid var(--line);border-radius:12px;padding:12px 14px;font:600 1rem var(--f-ui)}
+.sheet input{width:100%;color-scheme:inherit;box-sizing:border-box;background:var(--bg);color:var(--fg);border:1.5px solid var(--line);border-radius:12px;padding:12px 14px;font:600 1rem var(--f-ui)}
 .sheet input:focus{outline:none;border-color:var(--b0)}
 .sheet .row{display:flex;justify-content:flex-end;gap:8px}
 .sheet .row .pill{padding:11px 20px;font-size:.92rem}
@@ -120,6 +140,18 @@ button{font-family:inherit}
 <div class="app" id="app">
   <div class="bar">
     <button class="ib" id="histBtn" type="button" aria-label="Show history"></button>
+    <div class="tools" id="histTools" hidden>
+      <button class="ib" id="searchBtn" type="button" aria-label="Search labels">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21"/></svg>
+      </button>
+      <div class="qwrap" id="qwrap" hidden>
+        <input id="q" type="search" placeholder="Search labels" autocomplete="off" aria-label="Search labels">
+        <button class="qx" id="qClose" type="button" aria-label="Close search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      </div>
+      <button class="ib" id="dateBtn" type="button" aria-label="Filter by date">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/><path d="M8 14h.01M12 14h.01M16 14h.01M8 17.5h.01M12 17.5h.01" stroke-width="2.6"/></svg>
+      </button>
+    </div>
       </div>
 
   <section class="display" id="display" aria-live="polite">
@@ -130,6 +162,7 @@ button{font-family:inherit}
   <div class="pad">
     <div class="keys" id="keys">
       <aside class="history" id="history" hidden aria-label="Calculation history">
+        <div class="hfilter" id="hfilter" hidden></div>
         <div class="hlist" id="hlist"></div>
         <div class="hfoot" id="hfoot"></div>
       </aside>
@@ -144,6 +177,17 @@ button{font-family:inherit}
     <input id="labelInput" type="text" maxlength="40" autocomplete="off" placeholder="e.g. Rent for March" aria-label="Label name">
     <div class="row"><button class="pill" type="button" id="labelCancel">Cancel</button><button class="pill save" type="submit">Save</button></div>
   </form>
+</div>
+<div class="sheet" id="dateSheet" hidden>
+  <div class="card" role="dialog" aria-modal="true" aria-labelledby="dateTitle">
+    <h2 id="dateTitle">Show calculations from</h2>
+    <div class="opts" id="dateOpts"></div>
+    <div class="range">
+      <label for="dFrom">From<input id="dFrom" type="date"></label>
+      <label for="dTo">To<input id="dTo" type="date"></label>
+    </div>
+    <div class="row"><button class="pill" type="button" id="dateCancel">Cancel</button><button class="pill save" type="button" id="dateApply">Apply range</button></div>
+  </div>
 </div>
 <div class="toast" id="toast" role="status"></div>
 
@@ -454,7 +498,7 @@ const keysEl = $("keys");
 MAIN.forEach(k => keysEl.insertBefore(mkKey(k), $("history")));
 document.addEventListener("keydown", e => {
   if (e.ctrlKey || e.metaKey || e.altKey) return;   // copy, paste and select-all work normally
-  if (e.target.tagName === "INPUT" || !$("sheet").hidden) return;
+  if (e.target.tagName === "INPUT" || !$("sheet").hidden || !$("dateSheet").hidden) return;
   const k = e.key; let f = null;
   if (/^\d$/.test(k)) f = () => digit(k);
   else if (k===".") f = dot;
@@ -615,11 +659,11 @@ function renderHistoryKeepScroll(top){
   }
   list.scrollTop = top;
 }
-function rowFor(i){
-  const h = history[i], frag = document.createDocumentFragment();
-  if (i===0 || dayKey(history[i-1].ts) !== dayKey(h.ts)){ const d=document.createElement("div"); d.className="hday"; d.textContent=dayLabel(h.ts); frag.appendChild(d); }
+function rowFor(k){
+  const h = history[shown[k]], prev = k > 0 ? history[shown[k-1]] : null, frag = document.createDocumentFragment();
+  if (!prev || dayKey(prev.ts) !== dayKey(h.ts)){ const d=document.createElement("div"); d.className="hday"; d.textContent=dayLabel(h.ts); frag.appendChild(d); }
   const row = document.createElement("div"); row.className="hrow"; row.setAttribute("role","button"); row.tabIndex = 0;
-  row.innerHTML = (h.label ? `<div class="hlabel">${TAG_ICON}<span>${esc(h.label)}</span></div>` : "") +
+  row.innerHTML = (h.label ? `<div class="hlabel">${TAG_ICON}<span>${markQuery(h.label)}</span></div>` : "") +
     `<div class="hx">${wrapExpr(h.expr)}</div><div class="hr">=${esc(fmtNum(h.value))}</div>`;
   onLongPress(row, e => {
     const items = [["Copy", () => copyText(e.target.closest(".hx") ? plainExpr(h.expr) : fmtNum(h.value))],
@@ -635,14 +679,47 @@ function rowFor(i){
   frag.appendChild(row);
   return frag;
 }
+/* ---------- Filters: label search + date range ---------- */
+let query = "", dateF = null;   // dateF: {key, label, from, to} with from/to as timestamps
+let shown = [];                 // indices into history that pass the filters, oldest first
+const filtering = () => !!query || !!dateF;
+function applyFilters(){
+  const q = query.toLowerCase();
+  shown = [];
+  for (let i = 0; i < history.length; i++){
+    const h = history[i];
+    if (q && !(h.label && h.label.toLowerCase().includes(q))) continue;
+    if (dateF && (h.ts < dateF.from || h.ts >= dateF.to)) continue;
+    shown.push(i);
+  }
+}
+function markQuery(label){
+  if (!query) return esc(label);
+  const i = label.toLowerCase().indexOf(query.toLowerCase());
+  if (i < 0) return esc(label);
+  return esc(label.slice(0,i)) + "<mark>" + esc(label.slice(i, i+query.length)) + "</mark>" + esc(label.slice(i+query.length));
+}
+function renderFilterLine(){
+  const f = $("hfilter");
+  f.hidden = !filtering();
+  if (!filtering()) return;
+  const parts = [];
+  if (query) parts.push(`“${query}”`);
+  if (dateF) parts.push(dateF.label);
+  f.innerHTML = `<span>${shown.length.toLocaleString("en-US")} of ${history.length.toLocaleString("en-US")} · ${esc(parts.join(" · "))}</span><button type="button" id="fClear">Clear filters</button>`;
+  $("fClear").onclick = () => { clearFilters(); renderHistory(); };
+}
 function renderHistory(){
+  applyFilters(); renderFilterLine();
   const list = $("hlist"); list.innerHTML = "";
   if (!history.length){
     list.innerHTML = `<div class="hempty">No history yet.<br>Every calculation you finish is kept here, with no limit.</div>`;
+  } else if (!shown.length){
+    list.innerHTML = `<div class="hempty">No calculations match.<br>${query ? "Try another label" : "Try another date"}${query && dateF ? " or date" : ""}.</div>`;
   } else {
-    firstShown = Math.max(0, history.length - PAGE);
+    firstShown = Math.max(0, shown.length - PAGE);
     if (firstShown > 0) list.appendChild(moreNote());
-    for (let i = firstShown; i < history.length; i++) list.appendChild(rowFor(i));
+    for (let k = firstShown; k < shown.length; k++) list.appendChild(rowFor(k));
     list.scrollTop = list.scrollHeight;
   }
   renderFoot();
@@ -662,6 +739,7 @@ $("hlist").addEventListener("scroll", () => {
 });
 function renderFoot(){
   const f = $("hfoot"), n = history.length.toLocaleString("en-US");
+  if (filtering() && !confirming){ f.innerHTML = ""; return; }
   if (confirming){
     f.innerHTML = `<div class="confirm"><span style="flex-basis:100%">Delete all ${n} calculations?</span><button class="pill" type="button" id="hno">Cancel</button><button class="pill danger" type="button" id="hyes">Delete</button></div>`;
     $("hno").onclick = () => { confirming=false; renderFoot(); };
@@ -672,8 +750,64 @@ function renderFoot(){
   } else f.innerHTML = "";
 }
 function setHistIcon(open){ $("histBtn").innerHTML = open ? ICON_PAD : ICON_HIST; $("histBtn").setAttribute("aria-label", open ? "Show keypad" : "Show history"); }
-function openHistory(){ $("history").hidden=false; $("app").classList.add("hist-open"); setHistIcon(true); confirming=false; renderHistory(); }
-function closeHistory(){ $("history").hidden=true; $("app").classList.remove("hist-open"); setHistIcon(false); }
+function openHistory(){ $("history").hidden=false; $("app").classList.add("hist-open"); $("histTools").hidden=false; setHistIcon(true); confirming=false; renderHistory(); }
+function closeHistory(){ $("history").hidden=true; $("app").classList.remove("hist-open"); $("histTools").hidden=true; closeSearch(); clearFilters(); setHistIcon(false); }
+function clearFilters(){ query = ""; $("q").value = ""; dateF = null; $("searchBtn").classList.remove("on"); $("dateBtn").classList.remove("on"); }
+
+/* Search: filters by label as you type */
+function openSearch(){ $("qwrap").hidden = false; $("searchBtn").hidden = true; $("q").focus(); }
+function closeSearch(){ $("qwrap").hidden = true; $("searchBtn").hidden = false; $("q").blur(); }
+$("searchBtn").onclick = openSearch;
+$("q").addEventListener("input", () => { query = $("q").value.trim(); $("searchBtn").classList.toggle("on", !!query); renderHistory(); });
+$("q").addEventListener("keydown", e => { if (e.key === "Escape"){ e.preventDefault(); if ($("q").value){ $("q").value = ""; query = ""; renderHistory(); } else closeSearch(); } else if (e.key === "Enter"){ e.preventDefault(); $("q").blur(); } });
+$("qClose").addEventListener("pointerdown", e => e.preventDefault());
+$("qClose").onclick = () => { $("q").value = ""; query = ""; $("searchBtn").classList.remove("on"); closeSearch(); renderHistory(); };
+
+/* Date filter */
+const dayStart = d => { const x = new Date(d); x.setHours(0,0,0,0); return x.getTime(); };
+const addDays = (t, n) => { const x = new Date(t); x.setDate(x.getDate() + n); return x.getTime(); };
+function datePresets(){
+  const today = dayStart(Date.now()), now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+  const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1).getTime();
+  return [
+    ["all", "All dates", null],
+    ["today", "Today", [today, addDays(today, 1)]],
+    ["yesterday", "Yesterday", [addDays(today, -1), today]],
+    ["week", "Last 7 days", [addDays(today, -6), addDays(today, 1)]],
+    ["month", "This month", [monthStart, addDays(today, 1)]],
+    ["lastmonth", "Last month", [lastMonthStart, monthStart]]
+  ];
+}
+const isoDay = t => { const d = new Date(t); return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0"); };
+function setDate(f){ dateF = f; $("dateBtn").classList.toggle("on", !!f); $("dateSheet").hidden = true; renderHistory(); }
+function openDateSheet(){
+  const box = $("dateOpts"); box.innerHTML = "";
+  datePresets().forEach(([key, label, range]) => {
+    const b = document.createElement("button"); b.type = "button"; b.className = "opt" + ((dateF ? dateF.key : "all") === key ? " sel" : "");
+    b.textContent = label;
+    b.onclick = () => setDate(range ? { key, label, from: range[0], to: range[1] } : null);
+    box.appendChild(b);
+  });
+  const today = isoDay(Date.now());
+  $("dFrom").max = $("dTo").max = today;
+  $("dFrom").value = dateF && dateF.key === "custom" ? isoDay(dateF.from) : "";
+  $("dTo").value = dateF && dateF.key === "custom" ? isoDay(addDays(dateF.to, -1)) : "";
+  $("dateSheet").hidden = false;
+}
+$("dateBtn").onclick = openDateSheet;
+$("dateCancel").onclick = () => { $("dateSheet").hidden = true; };
+$("dateSheet").addEventListener("pointerdown", e => { if (e.target === $("dateSheet")) $("dateSheet").hidden = true; });
+$("dateApply").onclick = () => {
+  let a = $("dFrom").value, b = $("dTo").value;
+  if (!a && !b){ toast("Pick a From date, a To date, or both"); return; }
+  const parse = v => { const [y,m,d] = v.split("-").map(Number); return new Date(y, m-1, d).getTime(); };
+  let from = a ? parse(a) : 0, to = b ? addDays(parse(b), 1) : addDays(dayStart(Date.now()), 1);
+  if (from >= to){ toast("The From date must be on or before the To date"); return; }
+  const fmt = t => new Date(t).toLocaleDateString(undefined, { day:"numeric", month:"short", year:"numeric" });
+  const label = a && b ? `${fmt(from)} – ${fmt(addDays(to,-1))}` : a ? `From ${fmt(from)}` : `Until ${fmt(addDays(to,-1))}`;
+  setDate({ key: "custom", label, from, to });
+};
 $("histBtn").addEventListener("click", () => $("history").hidden ? openHistory() : closeHistory());
 setHistIcon(false);
 
@@ -682,6 +816,8 @@ let tt; function toast(msg){ const t=$("toast"); t.textContent=msg; t.classList.
 /* Android back button: close the history first, then leave the app */
 window.__onBack = () => {
   if (!$("sheet").hidden){ closeLabel(); return true; }
+  if (!$("dateSheet").hidden){ $("dateSheet").hidden = true; return true; }
+  if (!$("qwrap").hidden){ closeSearch(); return true; }
   if (!$("pop").hidden){ $("pop").hidden = true; return true; }
   if (!$("history").hidden){ closeHistory(); return true; }
   return false;
