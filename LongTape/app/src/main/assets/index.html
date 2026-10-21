@@ -46,13 +46,13 @@ button{font-family:inherit}
 /* Icon bar */
 .bar{display:flex;align-items:center;gap:6px;padding-top:6px}
 .ib{width:48px;height:48px;border:0;border-radius:14px;background:none;color:var(--fg);display:grid;place-items:center;cursor:pointer}
-.ib:hover{background:var(--key)}
+@media (hover:hover){.ib:hover{background:var(--key)}}
 .ib svg{width:28px;height:28px}
 .grow{flex:1}
 
 /* Display */
 .display{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;gap:clamp(10px,4vh,48px);padding:clamp(12px,6vh,72px) 6px 16px;overflow:hidden}
-.expr{font-family:var(--f-num);font-weight:300;text-align:right;line-height:1.18;word-break:normal;overflow-wrap:normal;overflow-y:auto;min-height:1.25em;font-variant-numeric:tabular-nums;outline:none;caret-color:var(--b0);-webkit-user-select:text;user-select:text;white-space:pre-wrap}
+.expr{font-family:var(--f-num);font-weight:300;text-align:right;line-height:1.18;word-break:normal;overflow-wrap:normal;overflow-y:auto;min-height:1.25em;font-variant-numeric:tabular-nums;outline:none;caret-color:var(--b0);-webkit-touch-callout:none;-webkit-user-select:text;user-select:text;white-space:pre-wrap}
 .expr::selection,.expr *::selection{background:color-mix(in srgb, var(--b0) 35%, transparent)}
 .expr .op{color:var(--b0)}
 .n{white-space:nowrap}
@@ -68,7 +68,7 @@ button{font-family:inherit}
 .keys{position:relative;display:grid;grid-template-columns:repeat(4,1fr);gap:var(--gap)}
 .key{border:0;border-radius:999px;aspect-ratio:1;min-width:0;background:var(--key);color:var(--fg);font:300 clamp(1.5rem,4.2vh,2.2rem) var(--f-num);
   display:grid;place-items:center;cursor:pointer;-webkit-user-select:none;user-select:none;transition:transform .07s, background .12s}
-.key:hover{filter:brightness(1.1)}
+@media (hover:hover){.key:hover{filter:brightness(1.1)}}
 .key:active{transform:scale(.93)}
 .key svg{width:42%;height:42%}
 .key.opk{background:var(--key2)}
@@ -81,11 +81,12 @@ button{font-family:inherit}
   border-right:1px solid var(--line);padding-right:14px;box-sizing:border-box;display:flex;flex-direction:column;gap:12px;background:var(--bg)}
 .app.hist-open .keys .key:not(.col4){visibility:hidden}
 .hlist{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;-webkit-user-select:none;user-select:none;scrollbar-width:thin}
-.hday{font:700 .68rem var(--f-ui);letter-spacing:.1em;text-transform:uppercase;color:var(--muted);text-align:right;padding:14px 0 2px}
-.hrow{display:flex;flex-direction:column;align-items:flex-end;padding:10px 0;cursor:pointer;border-radius:10px;font-family:var(--f-num);font-variant-numeric:tabular-nums}
-.hrow:hover{background:var(--key)}
-.hx{color:var(--fg);font-size:clamp(1rem,2.7vh,1.25rem);text-align:right;overflow-wrap:normal;line-height:1.3}
-.hr{color:var(--b0);font-size:clamp(1.25rem,3.4vh,1.6rem);text-align:right;overflow-wrap:anywhere}
+.hday{font:700 .62rem var(--f-ui);letter-spacing:.1em;text-transform:uppercase;color:var(--muted);text-align:right;padding:8px 0 0}
+.hrow{display:flex;flex-direction:column;align-items:flex-end;gap:1px;padding:7px 0;cursor:pointer;border-radius:10px;font-family:var(--f-num);font-variant-numeric:tabular-nums}
+@media (hover:hover){.hrow:hover{background:var(--key)}}
+.hrow:active{background:var(--key)}
+.hx{color:var(--fg);font-size:clamp(.88rem,1.9vh,1rem);letter-spacing:-.01em;text-align:right;overflow-wrap:normal;line-height:1.28}
+.hr{color:var(--b0);font-size:clamp(1.08rem,2.5vh,1.25rem);letter-spacing:-.01em;text-align:right;overflow-wrap:anywhere}
 .hempty{margin:auto 0;color:var(--muted);text-align:center;font-size:.92rem;line-height:1.5;padding:0 8px}
 .hfoot{display:flex;flex-direction:column;align-items:center;gap:8px}
 .pill{border:0;border-radius:999px;padding:14px 26px;background:var(--key2);color:var(--fg);font:700 1rem var(--f-ui);cursor:pointer;max-width:100%}
@@ -124,7 +125,7 @@ button{font-family:inherit}
     </div>
   </div>
 </div>
-<div class="pop" id="pop" hidden><button type="button" id="popCopy">Copy</button></div>
+<div class="pop" id="pop" hidden role="menu"></div>
 <div class="toast" id="toast" role="status"></div>
 
 <script>
@@ -454,15 +455,49 @@ function copyText(text){
   if (window.AndroidBridge){ try { window.AndroidBridge.copy(plain); toast("Copied"); } catch(e){} return; }
   if (navigator.clipboard) navigator.clipboard.writeText(plain).then(() => toast("Copied"), () => toast("Couldn't copy here"));
 }
-let popText = "";
-function showPop(x, y, text){
-  popText = text; const p = $("pop"); p.hidden = false;
+/* Small menu shown on long-press: items are [label, action] */
+function showMenu(x, y, items){
+  const p = $("pop"); p.innerHTML = "";
+  items.forEach(([label, fn]) => { const b = document.createElement("button"); b.type = "button"; b.textContent = label; b.setAttribute("role","menuitem");
+    b.addEventListener("pointerdown", e => e.preventDefault());
+    b.onclick = () => { p.hidden = true; fn(); }; p.appendChild(b); });
+  p.hidden = false;
   const w = p.offsetWidth, h = p.offsetHeight;
   p.style.left = Math.max(8, Math.min(innerWidth - w - 8, x - w/2)) + "px";
-  p.style.top = Math.max(8, y - h - 14) + "px";
+  p.style.top = Math.max(8, y - h - 18) + "px";
 }
-$("popCopy").onclick = () => { copyText(popText); $("pop").hidden = true; };
+function showPop(x, y, text){ showMenu(x, y, [["Copy", () => copyText(text)]]); }
 document.addEventListener("pointerdown", e => { if (!$("pop").hidden && !$("pop").contains(e.target)) $("pop").hidden = true; }, true);
+/* Paste from the phone's clipboard at the cursor */
+function insertPasted(raw){
+  const t = cleanPaste(raw || "");
+  if (!t){ toast("The clipboard has no number or calculation to paste"); return; }
+  act(() => { justEval = false; expr += t; });
+}
+function pasteFromClipboard(){
+  try { if (window.AndroidBridge && window.AndroidBridge.readClipboard){ insertPasted(window.AndroidBridge.readClipboard()); return; } } catch(e){}
+  if (navigator.clipboard && navigator.clipboard.readText)
+    navigator.clipboard.readText().then(insertPasted, () => toast("Your browser blocks pasting from this menu. Press Ctrl+V instead."));
+  else toast("Press Ctrl+V to paste");
+}
+function copyFromDisplay(){
+  const a = Math.min(selA,selB), b = Math.max(selA,selB);
+  const part = a !== b ? expr.slice(a,b) : expr;
+  if (!part){ toast("Nothing to copy yet"); return; }
+  copyText(plainExpr(part));
+}
+/* Long-press the calculation for Paste / Copy (a tap still places the cursor) */
+(() => {
+  let timer = null, sx = 0, sy = 0;
+  const open = () => { timer = null; haptic(); ed.focus({ preventScroll:true });
+    const items = [["Paste", pasteFromClipboard]];
+    if (expr) items.push([selA !== selB ? "Copy" : "Copy all", copyFromDisplay]);
+    showMenu(sx, sy, items); };
+  ed.addEventListener("pointerdown", e => { sx = e.clientX; sy = e.clientY; clearTimeout(timer); timer = setTimeout(open, 450); });
+  ed.addEventListener("pointermove", e => { if (timer && Math.hypot(e.clientX-sx, e.clientY-sy) > 10){ clearTimeout(timer); timer = null; } });
+  ["pointerup","pointercancel"].forEach(t => ed.addEventListener(t, () => { clearTimeout(timer); timer = null; }));
+  ed.addEventListener("contextmenu", e => { e.preventDefault(); if (timer){ clearTimeout(timer); open(); } else if ($("pop").hidden){ sx = e.clientX; sy = e.clientY; open(); } });
+})();
 function onLongPress(el, getText, onTap){
   let timer = null, sx = 0, sy = 0, fired = false;
   el.addEventListener("pointerdown", e => { fired=false; sx=e.clientX; sy=e.clientY;

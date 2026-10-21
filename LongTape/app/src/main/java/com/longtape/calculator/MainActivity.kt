@@ -94,6 +94,15 @@ class MainActivity : AppCompatActivity() {
             cm.setPrimaryClip(ClipData.newPlainText("Result", text))
         }
 
+        // Text currently on the phone's clipboard, for the Paste menu
+        @JavascriptInterface
+        fun readClipboard(): String {
+            val cm = getSystemService(ClipboardManager::class.java)
+            val clip = cm.primaryClip ?: return ""
+            if (clip.itemCount == 0) return ""
+            return clip.getItemAt(0).coerceToText(this@MainActivity)?.toString() ?: ""
+        }
+
         // A short keypad tick, the same feel as the phone's own keyboard
         @JavascriptInterface
         fun haptic() {
