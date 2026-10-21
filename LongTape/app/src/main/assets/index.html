@@ -1,0 +1,513 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<script>
+/* The app passes the phone's light/dark setting in the address so colors match from the first frame */
+try { var t = new URLSearchParams(location.search).get("theme"); if (t) document.documentElement.setAttribute("data-theme", t); } catch (e) {}
+</script>
+<title>Long Tape Calculator</title>
+<style>
+@font-face{font-family:"Sora";font-weight:300;font-style:normal;font-display:swap;src:url("fonts/sora-latin-300-normal.woff2") format("woff2")}
+@font-face{font-family:"Sora";font-weight:400;font-style:normal;font-display:swap;src:url("fonts/sora-latin-400-normal.woff2") format("woff2")}
+@font-face{font-family:"Sora";font-weight:500;font-style:normal;font-display:swap;src:url("fonts/sora-latin-500-normal.woff2") format("woff2")}
+@font-face{font-family:"Manrope";font-weight:400;font-style:normal;font-display:swap;src:url("fonts/manrope-latin-400-normal.woff2") format("woff2")}
+@font-face{font-family:"Manrope";font-weight:500;font-style:normal;font-display:swap;src:url("fonts/manrope-latin-500-normal.woff2") format("woff2")}
+@font-face{font-family:"Manrope";font-weight:600;font-style:normal;font-display:swap;src:url("fonts/manrope-latin-600-normal.woff2") format("woff2")}
+@font-face{font-family:"Manrope";font-weight:700;font-style:normal;font-display:swap;src:url("fonts/manrope-latin-700-normal.woff2") format("woff2")}
+*{box-sizing:border-box}
+body{margin:0;font-size:14px}
+button{-webkit-user-select:none;user-select:none}
+/* Layout: one phone-shaped column — display on top, tool row, keypad below; history slides over the keypad like a paper tape. */
+:root{
+  --bg:#f2f5f4; --surface:#ffffff; --key:#e4eae8; --key-hover:#d9e1de; --fn:#d3dfdb; --fg:#15201d; --muted:#64726e;
+  --accent:#1d8670; --accent-fg:#ffffff; --danger:#c2453a; --line:#d4dcd9; --tape:#fbfcf9;
+  --f-num:"Sora", "Segoe UI", system-ui, sans-serif;
+  --f-ui:"Manrope", "Segoe UI", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0d1211; --surface:#151c1a; --key:#1c2523; --key-hover:#24302d; --fn:#24312d; --fg:#e8efed; --muted:#879591;
+  --accent:#3dbd99; --accent-fg:#052119; --danger:#ff7b6c; --line:#25302d; --tape:#121917; color-scheme:dark }}
+:root[data-theme="dark"]{
+  --bg:#0d1211; --surface:#151c1a; --key:#1c2523; --key-hover:#24302d; --fn:#24312d; --fg:#e8efed; --muted:#879591;
+  --accent:#3dbd99; --accent-fg:#052119; --danger:#ff7b6c; --line:#25302d; --tape:#121917; color-scheme:dark }
+
+html,body{height:100%}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-ui);-webkit-tap-highlight-color:transparent;overflow:hidden}
+.app{height:100%;max-width:460px;margin:0 auto;display:flex;flex-direction:column;
+  padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px));padding-block:12px;box-sizing:border-box}
+
+/* Display */
+.display{flex:1 1 auto;min-height:110px;display:flex;flex-direction:column;justify-content:flex-end;align-items:stretch;gap:6px;padding:8px 4px 14px;overflow:hidden}
+.prev{font-family:var(--f-num);color:var(--muted);font-size:1rem;text-align:right;min-height:1.3em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.expr{font-family:var(--f-num);font-weight:300;text-align:right;word-break:break-all;line-height:1.15;overflow-y:auto;max-height:100%;font-variant-numeric:tabular-nums;transition:font-size .12s}
+.expr .op{color:var(--accent)}
+.expr.result{font-weight:400}
+.expr.placeholder{color:var(--muted)}
+.preview{font-family:var(--f-num);font-size:1.5rem;color:var(--muted);text-align:right;min-height:1.6em;font-variant-numeric:tabular-nums;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.preview.err{color:var(--danger);font-size:1rem}
+
+/* Tool row */
+.tools{display:flex;align-items:center;gap:4px;padding:6px 0 10px;border-bottom:1px solid var(--line);margin-bottom:12px}
+.tool{background:none;border:0;color:var(--muted);font:600 .82rem var(--f-ui);display:flex;align-items:center;gap:6px;padding:8px 10px;border-radius:10px;cursor:pointer}
+.tool:hover{background:var(--key)}
+.tool[aria-pressed="true"]{color:var(--accent)}
+.tool svg{width:22px;height:22px}
+.tool .count{font-variant-numeric:tabular-nums;letter-spacing:.02em}
+.spacer{flex:1}
+.tool.back{color:var(--accent)}
+.tool:focus-visible,.key:focus-visible,.hbtn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* Keypad */
+.padwrap{position:relative;flex:0 0 auto;display:flex;flex-direction:column;gap:10px}
+.sci{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+.keys{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.key{border:0;border-radius:22px;background:var(--key);color:var(--fg);font:400 1.65rem var(--f-num);cursor:pointer;
+  height:clamp(48px, 9.5vh, 76px);display:flex;align-items:center;justify-content:center;user-select:none;transition:background .1s, transform .06s}
+.key:hover{background:var(--key-hover)}
+.key:active{transform:scale(.95)}
+.key.fn{background:var(--fn)}
+.key.op{color:var(--accent);font-size:1.9rem}
+.key.clr{color:var(--danger)}
+.key.eq{background:var(--accent);color:var(--accent-fg);font-size:2rem}
+.key.eq:hover{filter:brightness(1.07)}
+.sci .key{height:clamp(34px, 5.4vh, 46px);border-radius:14px;font:500 .95rem var(--f-ui);background:transparent;color:var(--fg)}
+.sci .key:hover{background:var(--key)}
+.sci .key.on{color:var(--accent)}
+.app.sci-on .keys .key{height:clamp(42px, 7.4vh, 64px);font-size:1.45rem}
+.sci[hidden]{display:none!important}
+
+/* History tape */
+.history{position:absolute;inset:0 0 0 0;background:var(--tape);border:1px solid var(--line);border-radius:18px;display:flex;flex-direction:column;overflow:hidden;z-index:5}
+.hhead{display:flex;gap:8px;align-items:center;padding:10px 10px 8px;border-bottom:1px dashed var(--line)}
+.hsearch{flex:1;min-width:0;background:var(--key);border:0;border-radius:10px;padding:9px 12px;color:var(--fg);font:500 .9rem var(--f-ui)}
+.hsearch::placeholder{color:var(--muted)}
+.hsearch:focus{outline:2px solid var(--accent)}
+.hlist{flex:1;overflow-y:auto;padding:4px 14px 10px;min-height:0}
+.hday{font:700 .7rem var(--f-ui);letter-spacing:.09em;text-transform:uppercase;color:var(--muted);padding:14px 0 4px;position:sticky;top:0;background:var(--tape)}
+.hrow{display:flex;flex-direction:column;align-items:flex-end;gap:2px;padding:9px 0;border-bottom:1px dashed var(--line);font-family:var(--f-num);font-variant-numeric:tabular-nums}
+.hrow:last-child{border-bottom:0}
+.hrow button{background:none;border:0;color:inherit;font:inherit;cursor:pointer;text-align:right;padding:2px 4px;border-radius:6px;word-break:break-all;max-width:100%}
+.hrow button:hover{background:var(--key)}
+.hx{color:var(--muted);font-size:.95rem}
+.hr{color:var(--accent);font-size:1.25rem}
+.hr::before{content:"= ";color:var(--muted)}
+.hmeta{font:500 .68rem var(--f-ui);color:var(--muted);letter-spacing:.04em}
+.hempty{color:var(--muted);text-align:center;padding:40px 16px;font-size:.92rem;line-height:1.5}
+.hfoot{display:flex;gap:8px;align-items:center;padding:10px;border-top:1px solid var(--line);font-size:.82rem;color:var(--muted)}
+.hfoot .grow{flex:1;min-width:0}
+.hbtn{border:0;border-radius:10px;padding:9px 14px;font:700 .82rem var(--f-ui);cursor:pointer;background:var(--key);color:var(--fg)}
+.hbtn.danger{color:var(--danger)}
+.hbtn.solid{background:var(--danger);color:#fff}
+.more{text-align:center;color:var(--muted);font-size:.8rem;padding:10px}
+
+.toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom, 0px));transform:translateX(-50%) translateY(20px);background:var(--fg);color:var(--bg);
+  padding:10px 16px;border-radius:12px;font:600 .85rem var(--f-ui);opacity:0;pointer-events:none;transition:opacity .2s, transform .2s;z-index:20}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+@media (prefers-reduced-motion: reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<div class="app" id="app">
+  <section class="display" aria-live="polite">
+    <div class="prev" id="prev"></div>
+    <div class="expr placeholder" id="expr">0</div>
+    <div class="preview" id="preview"></div>
+  </section>
+
+  <div class="tools">
+    <button class="tool" id="histBtn" aria-pressed="false" aria-label="Show history">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v4h4"/><path d="M12 7v5l3 2"/></svg>
+      <span class="count" id="histCount">0</span>
+    </button>
+    <button class="tool" id="sciBtn" aria-pressed="false" aria-label="Scientific mode">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h7M7.5 3.5v7M14 5l6 6M20 5l-6 6M4 17h7M14 15h6M14 19h6"/></svg>
+      <span id="angleLbl">Scientific</span>
+    </button>
+    <span class="spacer"></span>
+    <button class="tool back" id="backBtn" aria-label="Delete last">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5h11a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H9l-6-7z"/><path d="M12 9l6 6M18 9l-6 6"/></svg>
+    </button>
+  </div>
+
+  <div class="padwrap">
+    <div class="sci" id="sci" hidden></div>
+    <div class="keys" id="keys"></div>
+
+    <aside class="history" id="history" hidden aria-label="Calculation history">
+      <div class="hhead">
+        <input class="hsearch" id="hsearch" type="search" placeholder="Search history" aria-label="Search history">
+        <button class="hbtn" id="hclose">Keypad</button>
+      </div>
+      <div class="hlist" id="hlist"></div>
+      <div class="hfoot" id="hfoot"></div>
+    </aside>
+  </div>
+</div>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+(() => {
+"use strict";
+const $ = id => document.getElementById(id);
+const OPS = "+−×÷^";
+const FUNCS = ["sin⁻¹","cos⁻¹","tan⁻¹","sin","cos","tan","ln","log","abs"];
+let expr = "", justEval = false, lastExpr = "", deg = true, inv = false;
+
+/* ---------- Evaluator (recursive descent) ---------- */
+function tokenize(s){
+  const t = []; let i = 0;
+  while (i < s.length){
+    const c = s[i];
+    if (/[\d.]/.test(c)){ let j=i; while (j<s.length && /[\d.]/.test(s[j])) j++; const n=s.slice(i,j);
+      if ((n.match(/\./g)||[]).length>1 || n===".") throw 0; t.push({k:"n",v:parseFloat(n)}); i=j; continue; }
+    const f = FUNCS.find(f => s.startsWith(f,i));
+    if (f){ t.push({k:"f",v:f}); i+=f.length; continue; }
+    if (c==="√"){ t.push({k:"f",v:"√"}); i++; continue; }
+    if (c==="π"){ t.push({k:"n",v:Math.PI}); i++; continue; }
+    if (c==="e"){ t.push({k:"n",v:Math.E}); i++; continue; }
+    if ("+−×÷^()%!".includes(c)){ t.push({k:c}); i++; continue; }
+    throw 0;
+  }
+  return t;
+}
+function evaluate(s){
+  const t = tokenize(s); let p = 0, lastPct = false;
+  const peek = () => t[p], eat = k => (t[p] && t[p].k===k) ? t[p++] : null;
+  const toR = x => deg ? x*Math.PI/180 : x, fromR = x => deg ? x*180/Math.PI : x;
+  const clean = x => Math.abs(x)<1e-13 ? 0 : x;
+  const F = {
+    "sin": x=>clean(Math.sin(toR(x))), "cos": x=>clean(Math.cos(toR(x))),
+    "tan": x=>{ const r=clean(Math.cos(toR(x))); if(r===0) throw 0; return clean(Math.tan(toR(x))); },
+    "sin⁻¹": x=>{ if(Math.abs(x)>1) throw 0; return fromR(Math.asin(x)); },
+    "cos⁻¹": x=>{ if(Math.abs(x)>1) throw 0; return fromR(Math.acos(x)); },
+    "tan⁻¹": x=>fromR(Math.atan(x)),
+    "ln": x=>{ if(x<=0) throw 0; return Math.log(x); }, "log": x=>{ if(x<=0) throw 0; return Math.log10(x); },
+    "abs": Math.abs, "√": x=>{ if(x<0) throw 0; return Math.sqrt(x); }
+  };
+  function fact(n){ if(n<0||!Number.isInteger(n)||n>170) throw 0; let r=1; for(let i=2;i<=n;i++) r*=i; return r; }
+  function primary(){
+    const tk = peek(); if(!tk) throw 0;
+    if (tk.k==="n"){ p++; return tk.v; }
+    if (eat("(")){ const v=expr(); if(!eat(")")) throw 0; return v; }
+    if (tk.k==="f"){ p++; return F[tk.v](unary()); }
+    throw 0;
+  }
+  function postfix(){ let v = primary(); lastPct=false;
+    for(;;){ if(eat("!")){ v=fact(v); lastPct=false; } else if(eat("%")){ v=v/100; lastPct=true; } else break; }
+    return v; }
+  function power(){ let b = postfix(); if (eat("^")){ const pct=lastPct; const e=unary(); lastPct=false; void pct; b=Math.pow(b,e); } return b; }
+  function unary(){ if (eat("−")) return -unary(); if (eat("+")) return unary(); return power(); }
+  function term(){ let v = unary(), pct = lastPct;
+    for(;;){ const tk=peek(); if(!tk) break;
+      if (tk.k==="×"){ p++; v*=unary(); pct=false; }
+      else if (tk.k==="÷"){ p++; const d=unary(); if(d===0) throw "div0"; v/=d; pct=false; }
+      else if (tk.k==="n"||tk.k==="f"||tk.k==="("){ v*=unary(); pct=false; }
+      else break; }
+    return {v,pct}; }
+  function expr(){ let v = term().v;
+    for(;;){ if (eat("+")){ const r=term(); v = r.pct ? v + v*r.v : v + r.v; }
+      else if (eat("−")){ const r=term(); v = r.pct ? v - v*r.v : v - r.v; }
+      else break; }
+    return v; }
+  const v = expr(); if (p<t.length) throw 0; if (!isFinite(v)) throw "big"; return v;
+}
+const openCount = s => (s.match(/\(/g)||[]).length - (s.match(/\)/g)||[]).length;
+const closed = s => s + ")".repeat(Math.max(0, openCount(s)));
+
+/* ---------- Formatting ---------- */
+function group(intStr){ return intStr.replace(/\B(?=(\d{3})+(?!\d))/g, ","); }
+function fmtNum(v){
+  if (Object.is(v,-0)) v = 0;
+  const a = Math.abs(v);
+  if (a !== 0 && (a >= 1e15 || a < 1e-9)){
+    let [m,e] = v.toExponential(9).split("e"); m = m.replace(/\.?0+$/,"");
+    return m.replace("-","−") + "E" + e.replace("+","");
+  }
+  let s = String(parseFloat(v.toPrecision(12)));
+  if (s.includes("e")) s = v.toFixed(12).replace(/\.?0+$/,"");
+  const neg = s.startsWith("-"); if (neg) s = s.slice(1);
+  const [i,d] = s.split(".");
+  return (neg?"−":"") + group(i) + (d ? "."+d : "");
+}
+function toExprStr(v){ // number as editable expression text
+  const f = fmtNum(v).replace(/,/g,"");
+  if (f.includes("E")){ const [m,e] = f.split("E"); return "("+m+"×10^"+e.replace("-","(−")+(e.startsWith("-")?")":"")+")"; }
+  return f;
+}
+function esc(s){ return s.replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+function prettyExpr(s){
+  return esc(s).replace(/\d+(\.\d*)?|[+−×÷^]/g, m => /[+−×÷^]/.test(m) ? `<span class="op">${m}</span>` : group(m.split(".")[0]) + (m.includes(".") ? "."+m.split(".")[1] : ""));
+}
+
+/* ---------- Render display ---------- */
+function sizeFor(len){ return len<=8?"3.3rem":len<=11?"2.7rem":len<=15?"2.2rem":len<=22?"1.8rem":"1.45rem"; }
+function render(){
+  const el = $("expr"), pv = $("preview");
+  el.classList.toggle("placeholder", !expr);
+  el.classList.toggle("result", justEval);
+  el.innerHTML = expr ? prettyExpr(expr) : "0";
+  el.style.fontSize = sizeFor((expr||"0").length);
+  el.scrollTop = el.scrollHeight;
+  $("prev").textContent = justEval && lastExpr ? lastExpr + " =" : "";
+  pv.classList.remove("err"); pv.textContent = "";
+  if (!justEval && /[+−×÷^%!√(a-zπe]/.test(expr.replace(/^−/,""))){
+    try { const v = evaluate(closed(expr)); const f = fmtNum(v); if (f !== prettyExpr(expr).replace(/<[^>]+>/g,"")) pv.textContent = f; } catch(e){}
+  }
+}
+function flashErr(msg){ const pv=$("preview"); pv.textContent = msg; pv.classList.add("err"); }
+
+/* ---------- Input ---------- */
+const lastCh = () => expr.slice(-1);
+const lastNum = () => (expr.match(/[\d.]+$/)||[""])[0];
+function startFresh(){ if (justEval){ expr=""; justEval=false; } }
+function continueFrom(){ if (justEval){ justEval=false; } }
+
+function digit(d){
+  startFresh();
+  const n = lastNum();
+  if (n.replace(".","").length >= 15){ toast("You can enter up to 15 digits per number"); return; }
+  if (n === "0" && d !== "."){ expr = expr.slice(0,-1) + d; return; }
+  if (/[)%!πe]/.test(lastCh()) && lastCh()) expr += "×";
+  expr += d;
+}
+function dot(){
+  startFresh();
+  const n = lastNum();
+  if (n.includes(".")) return;
+  if (!n){ if (/[)%!πe]/.test(lastCh()) && lastCh()) expr += "×"; expr += "0."; }
+  else expr += ".";
+}
+function op(o){
+  continueFrom();
+  if (!expr){ if (o==="−") expr="−"; return; }
+  const l = lastCh();
+  if (l === "(") { if (o==="−") expr += o; return; }
+  if (OPS.includes(l)){
+    if (o==="−" && "×÷^".includes(l)){ expr += o; return; }
+    expr = expr.replace(/[+−×÷^]+$/,"");
+    if (!expr || lastCh()==="(") { if (o==="−") expr += o; return; }
+  }
+  expr += o;
+}
+function paren(){
+  continueFrom();
+  const l = lastCh();
+  if (openCount(expr) > 0 && /[\d.)%!πe]/.test(l) && l) expr += ")";
+  else { if (/[\d.)%!πe]/.test(l) && l) expr += "×"; expr += "("; }
+}
+function percent(){ continueFrom(); if (/[\d)πe!]/.test(lastCh()) && expr) expr += "%"; }
+function negate(){
+  continueFrom();
+  let m;
+  if ((m = expr.match(/^−([\d.]+)$/))){ expr = m[1]; return; }
+  if ((m = expr.match(/\(−([\d.]+)$/))){ expr = expr.slice(0, -m[0].length) + m[1]; return; }
+  if ((m = expr.match(/([\d.]+)$/))){ expr = expr.slice(0, -m[1].length) + (expr.length===m[1].length ? "−" : "(−") + m[1]; return; }
+  if (!expr || OPS.includes(lastCh()) || lastCh()==="(") expr += "(−";
+}
+function insertFn(text){
+  startFresh();
+  const l = lastCh();
+  if (l && /[\d.)%!πe]/.test(l) && !/^[\^!%]/.test(text)) expr += "×";
+  if (/^[\^!%]/.test(text) && (!expr || OPS.includes(l) || l==="(")) return;
+  expr += text;
+}
+function back(){
+  if (justEval){ justEval=false; }
+  const m = expr.match(/(sin⁻¹|cos⁻¹|tan⁻¹|sin|cos|tan|ln|log|abs)\($|√\($|\(−$/);
+  expr = m ? expr.slice(0, -m[0].length) : expr.slice(0,-1);
+}
+function clearAll(){ expr=""; justEval=false; lastExpr=""; }
+function equals(){
+  if (!expr || justEval) return;
+  const full = closed(expr);
+  try {
+    const v = evaluate(full);
+    addHistory({ expr: full, value: v, ts: Date.now() });
+    lastExpr = prettyExpr(full).replace(/<[^>]+>/g,"");
+    expr = toExprStr(v); justEval = true; render();
+  } catch(e){
+    render();
+    flashErr(e==="div0" ? "Can't divide by 0" : e==="big" ? "Result is out of range" : "Invalid format used");
+  }
+}
+
+/* ---------- Keypad ---------- */
+const MAIN = [
+  ["C","clr fn",clearAll,"Clear"],["( )","fn",paren,"Parentheses"],["%","fn op",percent,"Percent"],["÷","op",()=>op("÷"),"Divide"],
+  ["7","",()=>digit("7")],["8","",()=>digit("8")],["9","",()=>digit("9")],["×","op",()=>op("×"),"Multiply"],
+  ["4","",()=>digit("4")],["5","",()=>digit("5")],["6","",()=>digit("6")],["−","op",()=>op("−"),"Subtract"],
+  ["1","",()=>digit("1")],["2","",()=>digit("2")],["3","",()=>digit("3")],["+","op",()=>op("+"),"Add"],
+  ["+/−","",negate,"Change sign"],["0","",()=>digit("0")],[".","",dot,"Decimal point"],["=","eq",equals,"Equals"]
+];
+function sciDefs(){ return [
+  ["⇄", inv?"on":"", ()=>{ inv=!inv; buildSci(); }, "Inverse functions"],
+  [deg?"Deg":"Rad", "", ()=>{ deg=!deg; buildSci(); render(); }, "Switch degrees or radians"],
+  [inv?"∛":"√", "", ()=> inv ? insertFn("^(1÷3)") : insertFn("√("), inv?"Cube root":"Square root"],
+  [inv?"x³":"x²", "", ()=>insertFn(inv?"^3":"^2"), inv?"Cube":"Square"],
+  ["xʸ", "", ()=>op("^"), "Power"],
+  ["x!", "", ()=>insertFn("!"), "Factorial"],
+  ["1/x", "", ()=>{ startFresh(); const l=lastCh(); if(l && /[\d.)%!πe]/.test(l)) expr+="×"; expr+="1÷("; }, "Reciprocal"],
+  ["π", "", ()=>insertFn("π"), "Pi"],
+  ["e", "", ()=>insertFn("e"), "Euler's number"],
+  ["|x|", "", ()=>insertFn("abs("), "Absolute value"],
+  [inv?"sin⁻¹":"sin", "", ()=>insertFn((inv?"sin⁻¹":"sin")+"(")],
+  [inv?"cos⁻¹":"cos", "", ()=>insertFn((inv?"cos⁻¹":"cos")+"(")],
+  [inv?"tan⁻¹":"tan", "", ()=>insertFn((inv?"tan⁻¹":"tan")+"(")],
+  [inv?"eˣ":"ln", "", ()=>insertFn(inv?"e^(":"ln(")],
+  [inv?"10ˣ":"log", "", ()=>insertFn(inv?"10^(":"log(")]
+]; }
+function mkKey([label, cls, fn, aria]){
+  const b = document.createElement("button");
+  b.className = "key " + (cls||""); b.textContent = label; b.type = "button";
+  if (aria) b.setAttribute("aria-label", aria);
+  b.addEventListener("click", () => { fn(); if (fn!==equals) render(); });
+  return b;
+}
+MAIN.forEach(k => $("keys").appendChild(mkKey(k)));
+function buildSci(){ const s=$("sci"); s.innerHTML=""; sciDefs().forEach(k=>s.appendChild(mkKey(k))); $("angleLbl").textContent = $("app").classList.contains("sci-on") ? (deg?"Degrees":"Radians") : "Scientific"; }
+buildSci();
+
+$("backBtn").addEventListener("click", () => { back(); render(); });
+$("sciBtn").addEventListener("click", () => {
+  const on = !$("app").classList.contains("sci-on");
+  $("app").classList.toggle("sci-on", on); $("sci").hidden = !on; $("sciBtn").setAttribute("aria-pressed", on); buildSci();
+});
+$("expr").addEventListener("click", () => {
+  if (!justEval) return;
+  const text = $("expr").textContent;
+  const plain = text.replace(/,/g,"").replace(/−/g,"-");
+  if (window.AndroidBridge) { window.AndroidBridge.copy(plain); toast("Copied "+text); }
+  else if (navigator.clipboard) navigator.clipboard.writeText(plain).then(()=>toast("Copied "+text), ()=>{});
+});
+
+document.addEventListener("keydown", e => {
+  if (e.target.tagName === "INPUT") return;
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  const k = e.key; let hit = true;
+  if (/^\d$/.test(k)) digit(k);
+  else if (k===".") dot();
+  else if (k==="+") op("+"); else if (k==="-") op("−"); else if (k==="*"||k==="x") op("×"); else if (k==="/") op("÷"); else if (k==="^") op("^");
+  else if (k==="(") { continueFrom(); if (/[\d.)%!πe]/.test(lastCh()) && lastCh()) expr+="×"; expr+="("; }
+  else if (k===")") { if (openCount(expr)>0) expr+=")"; }
+  else if (k==="%") percent(); else if (k==="!") insertFn("!");
+  else if (k==="Enter"||k==="=") { e.preventDefault(); equals(); return; }
+  else if (k==="Backspace") back(); else if (k==="Escape"||k==="Delete") clearAll();
+  else hit = false;
+  if (hit){ e.preventDefault(); render(); }
+});
+
+/* ---------- History (IndexedDB, no limit) ---------- */
+let history = [];   // newest last
+let db = null, persistent = false;
+function openDB(){
+  return new Promise(res => {
+    try {
+      const r = indexedDB.open("long-tape-calc", 1);
+      r.onupgradeneeded = () => r.result.createObjectStore("history", { keyPath: "id", autoIncrement: true });
+      r.onsuccess = () => res(r.result); r.onerror = () => res(null); r.onblocked = () => res(null);
+    } catch(e){ res(null); }
+  });
+}
+function store(mode){ return db.transaction("history", mode).objectStore("history"); }
+async function loadHistory(){
+  db = await openDB();
+  if (!db) { updateCount(); return; }
+  persistent = true;
+  try {
+    const r = store("readonly").getAll();
+    r.onsuccess = () => { history = r.result || []; updateCount(); if (!$("history").hidden) renderHistory(); };
+  } catch(e){}
+  try { navigator.storage && navigator.storage.persist && navigator.storage.persist(); } catch(e){}
+}
+function addHistory(entry){
+  if (db){
+    try { const r = store("readwrite").add(entry); r.onsuccess = () => { entry.id = r.result; }; } catch(e){}
+  }
+  history.push(entry); updateCount();
+  if (!$("history").hidden) renderHistory();
+}
+function clearHistory(){
+  if (db){ try { store("readwrite").clear(); } catch(e){} }
+  history = []; updateCount(); renderHistory(); toast("History cleared");
+}
+function updateCount(){ $("histCount").textContent = history.length.toLocaleString("en-US"); }
+
+let shown = 0, filtered = [], confirming = false;
+const PAGE = 150;
+function dayLabel(ts){
+  const d = new Date(ts), t = new Date(); t.setHours(0,0,0,0);
+  const dd = new Date(d); dd.setHours(0,0,0,0);
+  const diff = Math.round((t - dd)/864e5);
+  if (diff===0) return "Today"; if (diff===1) return "Yesterday";
+  return d.toLocaleDateString(undefined, { weekday:"short", day:"numeric", month:"short", year: d.getFullYear()===t.getFullYear()?undefined:"numeric" });
+}
+function renderHistory(){
+  const q = $("hsearch").value.trim().replace(/,/g,"").replace(/-/g,"−").replace(/\*/g,"×").replace(/\//g,"÷");
+  filtered = [];
+  for (let i = history.length-1; i >= 0; i--){
+    const h = history[i];
+    if (!q || h.expr.includes(q) || fmtNum(h.value).replace(/,/g,"").includes(q)) filtered.push(h);
+  }
+  shown = 0; $("hlist").innerHTML = ""; lastDay = null;
+  if (!filtered.length){
+    $("hlist").innerHTML = `<div class="hempty">${history.length ? "No calculations match “"+esc($("hsearch").value)+"”." : "Your calculations will appear here.<br>Every result is kept until you clear it."}</div>`;
+  } else appendMore();
+  renderFoot();
+}
+let lastDay = null;
+function appendMore(){
+  const list = $("hlist"); const frag = document.createDocumentFragment();
+  const old = list.querySelector(".more"); if (old) old.remove();
+  const end = Math.min(filtered.length, shown + PAGE);
+  for (; shown < end; shown++){
+    const h = filtered[shown]; const day = dayLabel(h.ts);
+    if (day !== lastDay){ const d=document.createElement("div"); d.className="hday"; d.textContent=day; frag.appendChild(d); lastDay=day; }
+    const row = document.createElement("div"); row.className = "hrow";
+    const time = new Date(h.ts).toLocaleTimeString(undefined,{hour:"2-digit",minute:"2-digit"});
+    row.innerHTML = `<span class="hmeta">${time}</span><button class="hx" title="Edit this calculation">${prettyExpr(h.expr).replace(/<[^>]+>/g,"")}</button><button class="hr" title="Use this result">${fmtNum(h.value)}</button>`;
+    row.querySelector(".hx").addEventListener("click", () => { expr = h.expr; justEval=false; closeHistory(); render(); });
+    row.querySelector(".hr").addEventListener("click", () => {
+      const s = toExprStr(h.value);
+      if (justEval || !expr) expr = s;
+      else { const l = lastCh(); if (/[\d.)%!πe]/.test(l)) expr += "×"; expr += (h.value<0 ? "("+s+")" : s); }
+      justEval = false; closeHistory(); render();
+    });
+    frag.appendChild(row);
+  }
+  if (shown < filtered.length){ const m=document.createElement("div"); m.className="more"; m.textContent=`Showing ${shown.toLocaleString("en-US")} of ${filtered.length.toLocaleString("en-US")} — scroll for more`; frag.appendChild(m); }
+  list.appendChild(frag);
+}
+$("hlist").addEventListener("scroll", e => {
+  const el = e.target; if (shown < filtered.length && el.scrollTop + el.clientHeight > el.scrollHeight - 200) appendMore();
+});
+function renderFoot(){
+  const f = $("hfoot"); const n = history.length.toLocaleString("en-US");
+  if (confirming){
+    f.innerHTML = `<span class="grow">Delete all ${n} calculations? This can't be undone.</span><button class="hbtn" id="hno">Cancel</button><button class="hbtn solid" id="hyes">Delete</button>`;
+    $("hno").onclick = () => { confirming=false; renderFoot(); };
+    $("hyes").onclick = () => { confirming=false; clearHistory(); };
+  } else {
+    f.innerHTML = `<span class="grow">${n} saved${persistent ? " on this device" : " until you close this page"} · no limit</span>` + (history.length ? `<button class="hbtn danger" id="hclear">Clear history</button>` : "");
+    if (history.length) $("hclear").onclick = () => { confirming=true; renderFoot(); };
+  }
+}
+function openHistory(){ $("history").hidden=false; $("histBtn").setAttribute("aria-pressed","true"); confirming=false; renderHistory(); }
+function closeHistory(){ $("history").hidden=true; $("histBtn").setAttribute("aria-pressed","false"); }
+$("histBtn").addEventListener("click", () => $("history").hidden ? openHistory() : closeHistory());
+$("hclose").addEventListener("click", closeHistory);
+$("hsearch").addEventListener("input", renderHistory);
+
+let tt; function toast(msg){ const t=$("toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(tt); tt=setTimeout(()=>t.classList.remove("show"),1600); }
+
+/* Android back button: close the history tape first, then leave the app */
+window.__onBack = () => { if (!$("history").hidden) { closeHistory(); return true; } return false; };
+
+render(); loadHistory();
+})();
+</script>
+
+</body>
+</html>

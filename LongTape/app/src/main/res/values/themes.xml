@@ -1,0 +1,7 @@
+<resources>
+    <style name="Theme.LongTape" parent="Theme.AppCompat.DayNight.NoActionBar">
+        <item name="android:windowBackground">@color/calc_bg</item>
+        <item name="colorPrimary">@color/icon_bg</item>
+        <item name="colorAccent">@color/icon_bg</item>
+    </style>
+</resources>
