@@ -18,7 +18,6 @@ try { var t = new URLSearchParams(location.search).get("theme"); if (t) document
 @font-face{font-family:"Manrope";font-weight:700;font-style:normal;font-display:swap;src:url("fonts/manrope-latin-700-normal.woff2") format("woff2")}
 *{box-sizing:border-box}
 body{margin:0;font-size:14px}
-[hidden]{display:none!important}
 /* Layout: icon bar, expression + live result, round 4-column keypad; history takes the left three columns beside the operators. */
 :root{
   --bg:#f4f6f5; --key:#e3e8e6; --key2:#d4dcd9; --fg:#121a18; --muted:#6b7975; --line:#cfd8d5;
@@ -37,6 +36,7 @@ body{margin:0;font-size:14px}
   --accent:#1f8f76; --accent-fg:#ffffff; --danger:#ff7468;
   --b0:#4fd1ad; --b1:#eef3f1; --b2:#f2c35e; color-scheme:dark }
 
+[hidden]{display:none!important}
 html,body{height:100%}
 body{background:var(--bg);color:var(--fg);font-family:var(--f-ui);-webkit-tap-highlight-color:transparent;overflow:hidden}
 button{font-family:inherit}
@@ -52,11 +52,12 @@ button{font-family:inherit}
 
 /* Display */
 .display{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;gap:clamp(10px,4vh,48px);padding:clamp(12px,6vh,72px) 6px 16px;overflow:hidden}
-.expr{font-family:var(--f-num);font-weight:300;text-align:right;line-height:1.18;word-break:break-all;overflow-y:auto;min-height:0;font-variant-numeric:tabular-nums;-webkit-user-select:none;user-select:none}
+.expr{font-family:var(--f-num);font-weight:300;text-align:right;line-height:1.18;word-break:break-all;overflow-y:auto;min-height:1.25em;font-variant-numeric:tabular-nums;outline:none;caret-color:var(--b0);-webkit-user-select:text;user-select:text;white-space:pre-wrap}
+.expr::selection,.expr *::selection{background:color-mix(in srgb, var(--b0) 35%, transparent)}
 .expr .op{color:var(--b0)}
 .expr .b0{color:var(--b0)} .expr .b1{color:var(--b1)} .expr .b2{color:var(--b2)}
-.expr .ghost{opacity:.3}
-.expr.empty{color:var(--muted)}
+.expr .un{color:var(--muted)}
+.expr.empty:empty::before{content:"0";color:var(--muted)}
 .preview{font-family:var(--f-num);font-weight:300;font-size:clamp(1.6rem,4.6vh,2.3rem);color:var(--muted);text-align:right;min-height:1.3em;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
 .preview.err{color:var(--danger);font-family:var(--f-ui);font-size:1.05rem;font-weight:600}
@@ -109,7 +110,7 @@ button{font-family:inherit}
       </div>
 
   <section class="display" id="display" aria-live="polite">
-    <div class="expr empty" id="expr">0</div>
+    <div class="expr empty" id="expr" contenteditable="true" inputmode="none" spellcheck="false" autocorrect="off" autocapitalize="off" role="textbox" aria-label="Calculation"></div>
     <div class="preview" id="preview"></div>
   </section>
 
@@ -220,36 +221,112 @@ function toExprStr(v){
 const esc = s => s.replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const groupNum = n => { const [i,d] = n.split("."); return group(i) + (n.includes(".") ? "."+(d||"") : ""); };
 const plainExpr = s => s.replace(/\d+(\.\d*)?/g, groupNum);
-/* Each bracket pair shares one colour (cycling by depth); unclosed brackets get faint closing partners at the end. */
-function prettyExpr(s){
-  let out = "", i = 0; const stack = [];
+/* Bracket pairs share one colour (cycling by depth). A bracket with no partner yet stays grey.
+   Also maps positions in the calculation to positions on screen (the screen adds thousands commas). */
+function buildView(s){
+  const cls = new Array(s.length), stack = [];
+  for (let i = 0; i < s.length; i++){
+    if (s[i] === "(") stack.push(i);
+    else if (s[i] === ")"){
+      if (stack.length){ const j = stack.pop(); cls[i] = cls[j] = "b" + (stack.length % 3); } else cls[i] = "un";
+    }
+  }
+  stack.forEach(j => cls[j] = "un");
+  let html = "", d = 0, i = 0; const dispOf = [];
   while (i < s.length){
     const c = s[i];
-    if (/[\d.]/.test(c)){ let j=i; while (j<s.length && /[\d.]/.test(s[j])) j++; out += groupNum(s.slice(i,j)); i=j; continue; }
-    if (c === "("){ const d = stack.length; stack.push(d); out += `<span class="b${d%3}">(</span>`; }
-    else if (c === ")"){ const d = stack.length ? stack.pop() : 0; out += `<span class="b${d%3}">)</span>`; }
-    else if (OPS.includes(c)) out += `<span class="op">${c}</span>`;
-    else out += esc(c);
+    if (/[\d.]/.test(c)){
+      let j = i; while (j < s.length && /[\d.]/.test(s[j])) j++;
+      const g = groupNum(s.slice(i,j)); let k = i;
+      for (const ch of g){ if (ch !== ",") dispOf[k++] = d; d++; }
+      html += g; i = j; continue;
+    }
+    dispOf[i] = d++;
+    if (c === "(" || c === ")") html += `<span class="${cls[i]}">${c}</span>`;
+    else if (OPS.includes(c)) html += `<span class="op">${c}</span>`;
+    else html += esc(c);
     i++;
   }
-  while (stack.length){ const d = stack.pop(); out += `<span class="b${d%3} ghost">)</span>`; }
-  return out;
+  dispOf[s.length] = d;
+  return { html, dispOf };
 }
+function rawFromDisp(view, d){ const m = view.dispOf; for (let r = 0; r < m.length; r++) if (m[r] >= d) return r; return m.length - 1; }
 
-/* ---------- Display ---------- */
+/* ---------- Display with cursor ---------- */
+const ed = $("expr");
+let view = { html:"", dispOf:[0] }, selA = 0, selB = 0;
 function sizeFor(len){ return len<=7?"clamp(2.6rem,7.5vh,3.6rem)":len<=10?"clamp(2.2rem,6.2vh,3rem)":len<=14?"clamp(1.9rem,5.2vh,2.5rem)":len<=22?"clamp(1.6rem,4.3vh,2.1rem)":"clamp(1.35rem,3.6vh,1.7rem)"; }
+function domPos(d){
+  const w = document.createTreeWalker(ed, NodeFilter.SHOW_TEXT); let acc = 0, n;
+  while ((n = w.nextNode())){ if (d <= acc + n.length) return [n, d - acc]; acc += n.length; }
+  return [ed, ed.childNodes.length];
+}
+function dispOffset(node, off){ const r = document.createRange(); r.setStart(ed, 0); r.setEnd(node, off); return r.toString().length; }
+function placeCaret(){
+  if (document.activeElement !== ed) return;
+  const sel = getSelection(), r = document.createRange();
+  const [n1,o1] = domPos(view.dispOf[Math.min(selA,selB)]), [n2,o2] = domPos(view.dispOf[Math.max(selA,selB)]);
+  r.setStart(n1,o1); r.setEnd(n2,o2); sel.removeAllRanges(); sel.addRange(r);
+}
 function render(){
-  const el = $("expr"), pv = $("preview");
-  el.classList.toggle("empty", !expr);
-  el.innerHTML = expr ? prettyExpr(expr) : "0";
-  el.style.fontSize = sizeFor(plainExpr(expr||"0").length);
-  el.scrollTop = el.scrollHeight;
+  const pv = $("preview");
+  selA = Math.min(selA, expr.length); selB = Math.min(selB, expr.length);
+  view = buildView(expr);
+  ed.classList.toggle("empty", !expr);
+  ed.innerHTML = view.html;
+  ed.style.fontSize = sizeFor(plainExpr(expr||"0").length);
+  placeCaret();
+  if (Math.max(selA,selB) >= expr.length) ed.scrollTop = ed.scrollHeight;
   pv.classList.remove("err"); pv.textContent = "";
   if (!justEval && /[+−×÷^%!√(a-zπe]/.test(expr.replace(/^−/,""))){
     try { const v = evaluate(closed(expr)); const f = fmtNum(v); if (f !== plainExpr(expr)) pv.textContent = f; } catch(e){}
   }
 }
 function flashErr(msg){ const pv=$("preview"); pv.textContent = msg; pv.classList.add("err"); }
+/* Follow the cursor when it is moved by tapping, dragging or arrow keys */
+document.addEventListener("selectionchange", () => {
+  const sel = getSelection();
+  if (!sel.rangeCount || (sel.anchorNode !== ed && !ed.contains(sel.anchorNode))) return;
+  const a = rawFromDisp(view, dispOffset(sel.anchorNode, sel.anchorOffset));
+  const b = rawFromDisp(view, dispOffset(sel.focusNode, sel.focusOffset));
+  if (a !== selA || b !== selB){ selA = a; selB = b; if (justEval){ justEval = false; } }
+});
+/* Run an edit at the cursor: the edit sees only the text before the cursor; a selection is replaced. */
+function act(fn){
+  const a = Math.min(selA,selB), b = Math.max(selA,selB), after = expr.slice(b);
+  const hadSel = a !== b;
+  if (hadSel) justEval = false;
+  expr = expr.slice(0, a);
+  if (!(hadSel && fn === back)) fn();
+  selA = selB = expr.length;
+  expr += after;
+  if (ed !== document.activeElement) ed.focus({ preventScroll: true });
+  render();
+}
+function fwdDelete(){
+  const a = Math.min(selA,selB), b = Math.max(selA,selB);
+  justEval = false;
+  expr = expr.slice(0,a) + expr.slice(a === b ? a + 1 : b); selA = selB = a; render();
+}
+ed.addEventListener("beforeinput", e => e.preventDefault());
+ed.addEventListener("drop", e => e.preventDefault());
+function cleanPaste(t){
+  t = t.trim().replace(/[,\s]/g, "");
+  if (/^[-−]?\d+(\.\d+)?[eE][+-]?\d+$/.test(t)) return toExprStr(parseFloat(t.replace("−","-")));
+  return t.replace(/[-–—]/g,"−").replace(/[*xX]/g,"×").replace(/[\/:]/g,"÷").replace(/[^\d.+−×÷^()%!πe]/g,"");
+}
+ed.addEventListener("paste", e => {
+  e.preventDefault();
+  const t = cleanPaste((e.clipboardData || window.clipboardData).getData("text") || "");
+  if (!t){ toast("Nothing to paste. Copy a number or calculation first."); return; }
+  act(() => { justEval = false; expr += t; });
+});
+ed.addEventListener("cut", e => {
+  e.preventDefault();
+  const text = getSelection().toString(); if (!text) return;
+  e.clipboardData.setData("text/plain", text);
+  act(() => {});
+});
 
 /* ---------- Input ---------- */
 const lastCh = () => expr.slice(-1);
@@ -282,7 +359,7 @@ function op(o){
   }
   expr += o;
 }
-function paren(){
+function paren(){ /* closes a bracket when one is open before the cursor and a number ends there; otherwise opens one */
   justEval = false;
   if (openCount(expr) > 0 && endsValue()) expr += ")";
   else { if (endsValue()) expr += "×"; expr += "("; }
@@ -300,14 +377,14 @@ function back(){
   const m = expr.match(/(sin⁻¹|cos⁻¹|tan⁻¹|sin|cos|tan|ln|log|abs)\($|√\($|\(−$/);
   expr = m ? expr.slice(0, -m[0].length) : expr.slice(0,-1);
 }
-function clearAll(){ expr=""; justEval=false; }
+function clearAll(){ expr=""; justEval=false; selA = selB = 0; }
 function equals(){
   if (!expr || justEval) return;
   const full = closed(expr);
   try {
     const v = evaluate(full);
     addHistory({ expr: full, value: v, ts: Date.now() });
-    expr = toExprStr(v); justEval = true; render();
+    expr = toExprStr(v); justEval = true; selA = selB = expr.length; render();
   } catch(e){
     render();
     flashErr(e==="div0" ? "Can't divide by 0" : e==="big" ? "Result is too large" : "Invalid format used");
@@ -331,11 +408,32 @@ function mkKey([label, cls, fn, aria]){
   if (label.startsWith("<svg")) b.innerHTML = label; else b.textContent = label;
   if (!fn) fn = () => digit(label);
   if (aria) b.setAttribute("aria-label", aria);
-  b.addEventListener("click", () => { fn(); if (fn !== equals) render(); });
+  b.addEventListener("pointerdown", e => e.preventDefault());
+  b.addEventListener("click", () => {
+    if (fn === equals) equals();
+    else if (fn === clearAll){ clearAll(); if (ed !== document.activeElement) ed.focus({ preventScroll:true }); render(); }
+    else act(fn);
+  });
   return b;
 }
 const keysEl = $("keys");
 MAIN.forEach(k => keysEl.insertBefore(mkKey(k), $("history")));
+document.addEventListener("keydown", e => {
+  if (e.ctrlKey || e.metaKey || e.altKey) return;   // copy, paste and select-all work normally
+  const k = e.key; let f = null;
+  if (/^\d$/.test(k)) f = () => digit(k);
+  else if (k===".") f = dot;
+  else if (k==="+") f = () => op("+"); else if (k==="-") f = () => op("−"); else if (k==="*"||k==="x") f = () => op("×"); else if (k==="/") f = () => op("÷"); else if (k==="^") f = () => op("^");
+  else if (k==="(") f = () => { justEval=false; if (endsValue()) expr+="×"; expr+="("; };
+  else if (k===")") f = () => { if (openCount(expr) > 0 && endsValue()) expr+=")"; };
+  else if (k==="%") f = percent; else if (k==="!") f = () => insertFn("!");
+  else if (k==="Backspace") f = back;
+  if (f){ e.preventDefault(); act(f); return; }
+  if (k==="Enter"||k==="="){ e.preventDefault(); equals(); }
+  else if (k==="Escape"){ e.preventDefault(); clearAll(); render(); }
+  else if (k==="Delete"){ e.preventDefault(); fwdDelete(); }
+});
+
 /* ---------- Copy (long-press) ---------- */
 function copyText(text){
   const plain = text.replace(/,/g,"").replace(/−/g,"-").replace(/^=\s*/,"");
@@ -361,7 +459,6 @@ function onLongPress(el, getText, onTap){
   el.addEventListener("contextmenu", e => e.preventDefault());
   el.addEventListener("click", e => { if (fired){ e.preventDefault(); return; } if (onTap) onTap(e); });
 }
-onLongPress($("expr"), () => justEval ? fmtNum(evaluate(expr)) : (expr ? plainExpr(expr) : ""), null);
 
 /* ---------- History (IndexedDB, no limit) ---------- */
 let history = [];   // oldest first
@@ -406,11 +503,11 @@ function rowFor(i){
   const row = document.createElement("div"); row.className="hrow"; row.setAttribute("role","button"); row.tabIndex = 0;
   row.innerHTML = `<div class="hx">${esc(plainExpr(h.expr))}</div><div class="hr">=${esc(fmtNum(h.value))}</div>`;
   onLongPress(row, e => e.target.closest(".hx") ? plainExpr(h.expr) : fmtNum(h.value), e => {
-    if (e.target.closest(".hx")) { expr = h.expr; justEval = false; }
-    else { const s = toExprStr(h.value); if (justEval || !expr) expr = s; else { if (endsValue()) expr += "×"; expr += (h.value<0 ? "("+s+")" : s); } justEval = false; }
-    closeHistory(); render();
+    closeHistory();
+    if (e.target.closest(".hx")) { expr = h.expr; justEval = false; selA = selB = expr.length; ed.focus({ preventScroll:true }); render(); }
+    else act(() => { const s = toExprStr(h.value); if (justEval){ expr = ""; justEval = false; } if (endsValue()) expr += "×"; expr += (h.value<0 && expr ? "("+s+")" : s); });
   });
-  row.addEventListener("keydown", e => { if (e.key==="Enter"){ expr = toExprStr(h.value); justEval=false; closeHistory(); render(); } });
+  row.addEventListener("keydown", e => { if (e.key==="Enter"){ e.stopPropagation(); e.preventDefault(); closeHistory(); act(() => { if (justEval){ expr=""; justEval=false; } expr += toExprStr(h.value); }); } });
   frag.appendChild(row);
   return frag;
 }
