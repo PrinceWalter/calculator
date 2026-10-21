@@ -102,6 +102,19 @@ button{font-family:inherit}
 .hfilter span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .hfilter button{flex:0 0 auto;border:0;background:var(--key);color:var(--fg);border-radius:999px;padding:5px 10px;font:700 .72rem var(--f-ui);cursor:pointer}
 .hlabel mark{background:color-mix(in srgb, var(--b2) 30%, transparent);color:inherit;border-radius:3px;padding:0 1px}
+.calhead{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.calhead h2{flex:1;text-align:center}
+.calnav{width:40px;height:40px;border:0;border-radius:50%;background:var(--bg);color:var(--fg);font:600 1.3rem var(--f-ui);cursor:pointer;display:grid;place-items:center}
+.calnav:disabled{opacity:.3;cursor:default}
+.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.cal .wd{font:700 .68rem var(--f-ui);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);text-align:center;padding:4px 0}
+.cal .d{position:relative;aspect-ratio:1;border:0;border-radius:50%;background:none;color:var(--fg);font:500 .95rem var(--f-num);cursor:pointer;display:grid;place-items:center;font-variant-numeric:tabular-nums;min-width:0}
+.cal .d:disabled{color:var(--muted);opacity:.4;cursor:default}
+.cal .d.today{outline:1.5px solid var(--line)}
+.cal .d.has::after{content:"";position:absolute;bottom:14%;left:50%;width:5px;height:5px;margin-left:-2.5px;border-radius:50%;background:var(--b0)}
+.cal .d.sel{background:var(--accent);color:var(--accent-fg)}
+.cal .d.sel::after{background:var(--accent-fg)}
+.calnote{font:500 .78rem var(--f-ui);color:var(--muted);text-align:center}
 .opts{display:flex;flex-direction:column;gap:6px}
 .opt{display:flex;align-items:center;justify-content:space-between;border:0;border-radius:12px;padding:12px 14px;background:var(--bg);color:var(--fg);font:600 .95rem var(--f-ui);cursor:pointer;text-align:left}
 .opt.sel{outline:2px solid var(--b0);color:var(--b0)}
@@ -148,7 +161,7 @@ button{font-family:inherit}
         <input id="q" type="search" placeholder="Search labels" autocomplete="off" aria-label="Search labels">
         <button class="qx" id="qClose" type="button" aria-label="Close search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
       </div>
-      <button class="ib" id="dateBtn" type="button" aria-label="Filter by date">
+      <button class="ib" id="dateBtn" type="button" aria-label="Pick a date">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/><path d="M8 14h.01M12 14h.01M16 14h.01M8 17.5h.01M12 17.5h.01" stroke-width="2.6"/></svg>
       </button>
     </div>
@@ -179,14 +192,14 @@ button{font-family:inherit}
   </form>
 </div>
 <div class="sheet" id="dateSheet" hidden>
-  <div class="card" role="dialog" aria-modal="true" aria-labelledby="dateTitle">
-    <h2 id="dateTitle">Show calculations from</h2>
-    <div class="opts" id="dateOpts"></div>
-    <div class="range">
-      <label for="dFrom">From<input id="dFrom" type="date"></label>
-      <label for="dTo">To<input id="dTo" type="date"></label>
+  <div class="card" role="dialog" aria-modal="true" aria-labelledby="calTitle">
+    <div class="calhead">
+      <button class="calnav" type="button" id="calPrev" aria-label="Previous month">‹</button>
+      <h2 id="calTitle"></h2>
+      <button class="calnav" type="button" id="calNext" aria-label="Next month">›</button>
     </div>
-    <div class="row"><button class="pill" type="button" id="dateCancel">Cancel</button><button class="pill save" type="button" id="dateApply">Apply range</button></div>
+    <div class="cal" id="calGrid"></div>
+    <div class="calnote">Days with a dot have calculations</div>
   </div>
 </div>
 <div class="toast" id="toast" role="status"></div>
@@ -763,51 +776,46 @@ $("q").addEventListener("keydown", e => { if (e.key === "Escape"){ e.preventDefa
 $("qClose").addEventListener("pointerdown", e => e.preventDefault());
 $("qClose").onclick = () => { $("q").value = ""; query = ""; $("searchBtn").classList.remove("on"); closeSearch(); renderHistory(); };
 
-/* Date filter */
+/* Date filter: pick one day on a month calendar */
 const dayStart = d => { const x = new Date(d); x.setHours(0,0,0,0); return x.getTime(); };
 const addDays = (t, n) => { const x = new Date(t); x.setDate(x.getDate() + n); return x.getTime(); };
-function datePresets(){
-  const today = dayStart(Date.now()), now = new Date();
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
-  const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1).getTime();
-  return [
-    ["all", "All dates", null],
-    ["today", "Today", [today, addDays(today, 1)]],
-    ["yesterday", "Yesterday", [addDays(today, -1), today]],
-    ["week", "Last 7 days", [addDays(today, -6), addDays(today, 1)]],
-    ["month", "This month", [monthStart, addDays(today, 1)]],
-    ["lastmonth", "Last month", [lastMonthStart, monthStart]]
-  ];
-}
-const isoDay = t => { const d = new Date(t); return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0"); };
+let calMonth = null, daysWithCalcs = new Set();
 function setDate(f){ dateF = f; $("dateBtn").classList.toggle("on", !!f); $("dateSheet").hidden = true; renderHistory(); }
+function renderCal(){
+  const y = calMonth.getFullYear(), m = calMonth.getMonth(), today = dayStart(Date.now());
+  $("calTitle").textContent = calMonth.toLocaleDateString(undefined, { month:"long", year:"numeric" });
+  const now = new Date();
+  $("calNext").disabled = y > now.getFullYear() || (y === now.getFullYear() && m >= now.getMonth());
+  const grid = $("calGrid"); grid.innerHTML = "";
+  const monday = new Date(2024, 0, 1);   // a Monday, for weekday names
+  for (let k = 0; k < 7; k++){ const w = document.createElement("div"); w.className = "wd"; w.textContent = new Date(monday.getTime() + k*864e5).toLocaleDateString(undefined, { weekday:"narrow" }); grid.appendChild(w); }
+  const lead = (new Date(y, m, 1).getDay() + 6) % 7;   // weeks start on Monday
+  for (let k = 0; k < lead; k++) grid.appendChild(document.createElement("div"));
+  const days = new Date(y, m + 1, 0).getDate();
+  for (let d = 1; d <= days; d++){
+    const t = new Date(y, m, d).getTime(), b = document.createElement("button");
+    b.type = "button"; b.className = "d"; b.textContent = d;
+    b.setAttribute("aria-label", new Date(t).toLocaleDateString(undefined, { weekday:"long", day:"numeric", month:"long", year:"numeric" }));
+    if (t > today) b.disabled = true;
+    if (t === today) b.classList.add("today");
+    if (daysWithCalcs.has(dayKey(t))) b.classList.add("has");
+    if (dateF && dateF.from === t) { b.classList.add("sel"); b.setAttribute("aria-pressed", "true"); }
+    b.onclick = () => setDate({ key: "day", from: t, to: addDays(t, 1),
+      label: new Date(t).toLocaleDateString(undefined, { weekday:"short", day:"numeric", month:"short", year:"numeric" }) });
+    grid.appendChild(b);
+  }
+}
 function openDateSheet(){
-  const box = $("dateOpts"); box.innerHTML = "";
-  datePresets().forEach(([key, label, range]) => {
-    const b = document.createElement("button"); b.type = "button"; b.className = "opt" + ((dateF ? dateF.key : "all") === key ? " sel" : "");
-    b.textContent = label;
-    b.onclick = () => setDate(range ? { key, label, from: range[0], to: range[1] } : null);
-    box.appendChild(b);
-  });
-  const today = isoDay(Date.now());
-  $("dFrom").max = $("dTo").max = today;
-  $("dFrom").value = dateF && dateF.key === "custom" ? isoDay(dateF.from) : "";
-  $("dTo").value = dateF && dateF.key === "custom" ? isoDay(addDays(dateF.to, -1)) : "";
+  daysWithCalcs = new Set(history.map(h => dayKey(h.ts)));
+  const base = dateF ? new Date(dateF.from) : new Date();
+  calMonth = new Date(base.getFullYear(), base.getMonth(), 1);
+  renderCal();
   $("dateSheet").hidden = false;
 }
 $("dateBtn").onclick = openDateSheet;
-$("dateCancel").onclick = () => { $("dateSheet").hidden = true; };
+$("calPrev").onclick = () => { calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() - 1, 1); renderCal(); };
+$("calNext").onclick = () => { calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() + 1, 1); renderCal(); };
 $("dateSheet").addEventListener("pointerdown", e => { if (e.target === $("dateSheet")) $("dateSheet").hidden = true; });
-$("dateApply").onclick = () => {
-  let a = $("dFrom").value, b = $("dTo").value;
-  if (!a && !b){ toast("Pick a From date, a To date, or both"); return; }
-  const parse = v => { const [y,m,d] = v.split("-").map(Number); return new Date(y, m-1, d).getTime(); };
-  let from = a ? parse(a) : 0, to = b ? addDays(parse(b), 1) : addDays(dayStart(Date.now()), 1);
-  if (from >= to){ toast("The From date must be on or before the To date"); return; }
-  const fmt = t => new Date(t).toLocaleDateString(undefined, { day:"numeric", month:"short", year:"numeric" });
-  const label = a && b ? `${fmt(from)} – ${fmt(addDays(to,-1))}` : a ? `From ${fmt(from)}` : `Until ${fmt(addDays(to,-1))}`;
-  setDate({ key: "custom", label, from, to });
-};
 $("histBtn").addEventListener("click", () => $("history").hidden ? openHistory() : closeHistory());
 setHistIcon(false);
 
