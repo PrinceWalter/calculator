@@ -95,6 +95,17 @@ button{font-family:inherit}
 .confirm .pill{padding:11px 18px;font-size:.9rem}
 .more{text-align:center;color:var(--muted);font-size:.75rem;padding:6px}
 
+.hlabel{align-self:flex-start;max-width:100%;display:flex;align-items:center;gap:5px;color:var(--b2);font:700 .78rem var(--f-ui);letter-spacing:.01em;line-height:1.2;padding-bottom:2px;overflow-wrap:anywhere}
+.hlabel svg{flex:0 0 auto;width:12px;height:12px}
+.sheet{position:fixed;inset:0;z-index:35;background:rgb(0 0 0 / .45);display:flex;justify-content:center;align-items:flex-start;padding:16vh max(16px, env(safe-area-inset-right, 0px)) 16px max(16px, env(safe-area-inset-left, 0px))}
+.sheet .card{width:min(360px,100%);background:var(--key);border-radius:20px;padding:18px;display:flex;flex-direction:column;gap:12px;box-shadow:0 12px 32px rgb(0 0 0 / .4)}
+.sheet h2{margin:0;font:700 1.05rem var(--f-ui);color:var(--fg)}
+.sheet .calc{font:400 .9rem var(--f-num);color:var(--muted);overflow-wrap:anywhere}
+.sheet input{width:100%;box-sizing:border-box;background:var(--bg);color:var(--fg);border:1.5px solid var(--line);border-radius:12px;padding:12px 14px;font:600 1rem var(--f-ui)}
+.sheet input:focus{outline:none;border-color:var(--b0)}
+.sheet .row{display:flex;justify-content:flex-end;gap:8px}
+.sheet .row .pill{padding:11px 20px;font-size:.92rem}
+.pill.save{background:var(--accent);color:var(--accent-fg)}
 .pop{position:fixed;z-index:30;background:var(--key2);border-radius:14px;padding:4px;display:flex;box-shadow:0 8px 24px rgb(0 0 0 / .35)}
 .pop button{border:0;background:none;color:var(--fg);font:600 1rem var(--f-ui);padding:12px 18px;border-radius:10px;cursor:pointer}
 .pop button:hover{background:var(--key)}
@@ -126,6 +137,14 @@ button{font-family:inherit}
   </div>
 </div>
 <div class="pop" id="pop" hidden role="menu"></div>
+<div class="sheet" id="sheet" hidden>
+  <form class="card" id="labelForm" role="dialog" aria-modal="true" aria-labelledby="labelTitle">
+    <h2 id="labelTitle">Label this calculation</h2>
+    <div class="calc" id="labelCalc"></div>
+    <input id="labelInput" type="text" maxlength="40" autocomplete="off" placeholder="e.g. Rent for March" aria-label="Label name">
+    <div class="row"><button class="pill" type="button" id="labelCancel">Cancel</button><button class="pill save" type="submit">Save</button></div>
+  </form>
+</div>
 <div class="toast" id="toast" role="status"></div>
 
 <script>
@@ -435,6 +454,7 @@ const keysEl = $("keys");
 MAIN.forEach(k => keysEl.insertBefore(mkKey(k), $("history")));
 document.addEventListener("keydown", e => {
   if (e.ctrlKey || e.metaKey || e.altKey) return;   // copy, paste and select-all work normally
+  if (e.target.tagName === "INPUT" || !$("sheet").hidden) return;
   const k = e.key; let f = null;
   if (/^\d$/.test(k)) f = () => digit(k);
   else if (k===".") f = dot;
@@ -512,7 +532,7 @@ function copyFromDisplay(){
 function onLongPress(el, getText, onTap){
   let timer = null, sx = 0, sy = 0, fired = false;
   el.addEventListener("pointerdown", e => { fired=false; sx=e.clientX; sy=e.clientY;
-    timer = setTimeout(() => { fired = true; const t = getText(e); if (t) showPop(sx, sy, t); }, 480); });
+    timer = setTimeout(() => { fired = true; haptic(); const items = getText(e); if (Array.isArray(items)) showMenu(sx, sy, items); else if (items) showPop(sx, sy, items); }, 480); });
   el.addEventListener("pointermove", e => { if (timer && Math.hypot(e.clientX-sx, e.clientY-sy) > 10){ clearTimeout(timer); timer=null; } });
   const end = () => { clearTimeout(timer); timer=null; };
   el.addEventListener("pointerup", end); el.addEventListener("pointercancel", end); el.addEventListener("pointerleave", end);
@@ -557,12 +577,56 @@ function dayLabel(ts){
   return d.toLocaleDateString(undefined, { weekday:"short", day:"numeric", month:"short", year: d.getFullYear()===t.getFullYear()?undefined:"numeric" });
 }
 const PAGE = 120; let firstShown = 0, confirming = false;
+const TAG_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12V4a1 1 0 0 1 1-1h8l9 9-9 9z"/><circle cx="8" cy="8" r="1.5" fill="currentColor"/></svg>';
+function saveLabel(h, name){
+  name = name.trim().slice(0, 40);
+  if (name) h.label = name; else delete h.label;
+  if (db && h.id != null){ try { store("readwrite").put(h); } catch(e){} }
+  const list = $("hlist"), keep = list.scrollTop;
+  renderHistoryKeepScroll(keep);
+  toast(name ? "Label saved" : "Label removed");
+}
+let labelTarget = null;
+function openLabel(h){
+  labelTarget = h;
+  $("labelCalc").textContent = plainExpr(h.expr) + " = " + fmtNum(h.value);
+  $("labelTitle").textContent = h.label ? "Edit label" : "Label this calculation";
+  $("labelInput").value = h.label || "";
+  $("sheet").hidden = false;
+  $("labelInput").focus(); $("labelInput").select();
+  setTimeout(() => { $("labelInput").focus(); $("labelInput").select(); }, 30);
+}
+function closeLabel(){ $("sheet").hidden = true; labelTarget = null; }
+$("labelForm").addEventListener("submit", e => { e.preventDefault(); const h = labelTarget; closeLabel(); if (h) saveLabel(h, $("labelInput").value); });
+$("labelCancel").onclick = closeLabel;
+$("sheet").addEventListener("pointerdown", e => { if (e.target === $("sheet")) closeLabel(); });
+$("labelInput").addEventListener("keydown", e => { if (e.key === "Escape"){ e.preventDefault(); closeLabel(); } });
+function renderHistoryKeepScroll(top){
+  const shownFrom = firstShown;
+  renderHistory();
+  /* keep older entries that were already loaded, and the scroll position */
+  const list = $("hlist");
+  while (firstShown > shownFrom){
+    const start = Math.max(shownFrom, firstShown - PAGE), frag = document.createDocumentFragment();
+    for (let i = start; i < firstShown; i++) frag.appendChild(rowFor(i));
+    const note = list.querySelector(".more"); if (note) note.remove();
+    firstShown = start; list.insertBefore(frag, list.firstChild);
+    if (firstShown > 0) list.insertBefore(moreNote(), list.firstChild);
+  }
+  list.scrollTop = top;
+}
 function rowFor(i){
   const h = history[i], frag = document.createDocumentFragment();
   if (i===0 || dayKey(history[i-1].ts) !== dayKey(h.ts)){ const d=document.createElement("div"); d.className="hday"; d.textContent=dayLabel(h.ts); frag.appendChild(d); }
   const row = document.createElement("div"); row.className="hrow"; row.setAttribute("role","button"); row.tabIndex = 0;
-  row.innerHTML = `<div class="hx">${wrapExpr(h.expr)}</div><div class="hr">=${esc(fmtNum(h.value))}</div>`;
-  onLongPress(row, e => e.target.closest(".hx") ? plainExpr(h.expr) : fmtNum(h.value), e => {
+  row.innerHTML = (h.label ? `<div class="hlabel">${TAG_ICON}<span>${esc(h.label)}</span></div>` : "") +
+    `<div class="hx">${wrapExpr(h.expr)}</div><div class="hr">=${esc(fmtNum(h.value))}</div>`;
+  onLongPress(row, e => {
+    const items = [["Copy", () => copyText(e.target.closest(".hx") ? plainExpr(h.expr) : fmtNum(h.value))],
+                   [h.label ? "Edit label" : "Label", () => openLabel(h)]];
+    if (h.label) items.push(["Remove label", () => saveLabel(h, "")]);
+    return items;
+  }, e => {
     closeHistory();
     if (e.target.closest(".hx")) { expr = h.expr; justEval = false; selA = selB = expr.length; ed.focus({ preventScroll:true }); render(); }
     else act(() => { const s = toExprStr(h.value); if (justEval){ expr = ""; justEval = false; } if (endsValue()) expr += "×"; expr += (h.value<0 && expr ? "("+s+")" : s); });
@@ -617,6 +681,7 @@ let tt; function toast(msg){ const t=$("toast"); t.textContent=msg; t.classList.
 
 /* Android back button: close the history first, then leave the app */
 window.__onBack = () => {
+  if (!$("sheet").hidden){ closeLabel(); return true; }
   if (!$("pop").hidden){ $("pop").hidden = true; return true; }
   if (!$("history").hidden){ closeHistory(); return true; }
   return false;
