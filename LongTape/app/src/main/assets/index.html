@@ -52,13 +52,14 @@ button{font-family:inherit}
 
 /* Display */
 .display{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;gap:clamp(10px,4vh,48px);padding:clamp(12px,6vh,72px) 6px 16px;overflow:hidden}
-.expr{font-family:var(--f-num);font-weight:300;text-align:right;line-height:1.18;word-break:break-all;overflow-y:auto;min-height:1.25em;font-variant-numeric:tabular-nums;outline:none;caret-color:var(--b0);-webkit-user-select:text;user-select:text;white-space:pre-wrap}
+.expr{font-family:var(--f-num);font-weight:300;text-align:right;line-height:1.18;word-break:normal;overflow-wrap:normal;overflow-y:auto;min-height:1.25em;font-variant-numeric:tabular-nums;outline:none;caret-color:var(--b0);-webkit-user-select:text;user-select:text;white-space:pre-wrap}
 .expr::selection,.expr *::selection{background:color-mix(in srgb, var(--b0) 35%, transparent)}
 .expr .op{color:var(--b0)}
+.n{white-space:nowrap}
 .expr .b0{color:var(--b0)} .expr .b1{color:var(--b1)} .expr .b2{color:var(--b2)}
 .expr .un{color:var(--muted)}
 .expr.empty:empty::before{content:"0";color:var(--muted)}
-.preview{font-family:var(--f-num);font-weight:300;font-size:clamp(1.6rem,4.6vh,2.3rem);color:var(--muted);text-align:right;min-height:1.3em;
+.preview{font-family:var(--f-num);font-weight:300;font-size:clamp(1.4rem,4vh,2rem);color:var(--muted);text-align:right;min-height:1.3em;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
 .preview.err{color:var(--danger);font-family:var(--f-ui);font-size:1.05rem;font-weight:600}
 
@@ -83,8 +84,8 @@ button{font-family:inherit}
 .hday{font:700 .68rem var(--f-ui);letter-spacing:.1em;text-transform:uppercase;color:var(--muted);text-align:right;padding:14px 0 2px}
 .hrow{display:flex;flex-direction:column;align-items:flex-end;padding:10px 0;cursor:pointer;border-radius:10px;font-family:var(--f-num);font-variant-numeric:tabular-nums}
 .hrow:hover{background:var(--key)}
-.hx{color:var(--fg);font-size:clamp(1rem,2.7vh,1.25rem);text-align:right;word-break:break-all;line-height:1.3}
-.hr{color:var(--b0);font-size:clamp(1.25rem,3.4vh,1.6rem);text-align:right;word-break:break-all}
+.hx{color:var(--fg);font-size:clamp(1rem,2.7vh,1.25rem);text-align:right;overflow-wrap:normal;line-height:1.3}
+.hr{color:var(--b0);font-size:clamp(1.25rem,3.4vh,1.6rem);text-align:right;overflow-wrap:anywhere}
 .hempty{margin:auto 0;color:var(--muted);text-align:center;font-size:.92rem;line-height:1.5;padding:0 8px}
 .hfoot{display:flex;flex-direction:column;align-items:center;gap:8px}
 .pill{border:0;border-radius:999px;padding:14px 26px;background:var(--key2);color:var(--fg);font:700 1rem var(--f-ui);cursor:pointer;max-width:100%}
@@ -221,6 +222,7 @@ function toExprStr(v){
 const esc = s => s.replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const groupNum = n => { const [i,d] = n.split("."); return group(i) + (n.includes(".") ? "."+(d||"") : ""); };
 const plainExpr = s => s.replace(/\d+(\.\d*)?/g, groupNum);
+const wrapExpr = s => esc(s).replace(/\d+(\.\d*)?/g, m => `<span class="n">${groupNum(m)}</span>`).replace(/[+−×÷^]/g, '<wbr>$&');
 /* Bracket pairs share one colour (cycling by depth). A bracket with no partner yet stays grey.
    Also maps positions in the calculation to positions on screen (the screen adds thousands commas). */
 function buildView(s){
@@ -239,11 +241,11 @@ function buildView(s){
       let j = i; while (j < s.length && /[\d.]/.test(s[j])) j++;
       const g = groupNum(s.slice(i,j)); let k = i;
       for (const ch of g){ if (ch !== ",") dispOf[k++] = d; d++; }
-      html += g; i = j; continue;
+      html += `<span class="n">${g}</span>`; i = j; continue;
     }
     dispOf[i] = d++;
     if (c === "(" || c === ")") html += `<span class="${cls[i]}">${c}</span>`;
-    else if (OPS.includes(c)) html += `<span class="op">${c}</span>`;
+    else if (OPS.includes(c)) html += `<wbr><span class="op">${c}</span>`;
     else html += esc(c);
     i++;
   }
@@ -255,7 +257,15 @@ function rawFromDisp(view, d){ const m = view.dispOf; for (let r = 0; r < m.leng
 /* ---------- Display with cursor ---------- */
 const ed = $("expr");
 let view = { html:"", dispOf:[0] }, selA = 0, selB = 0;
-function sizeFor(len){ return len<=7?"clamp(2.6rem,7.5vh,3.6rem)":len<=10?"clamp(2.2rem,6.2vh,3rem)":len<=14?"clamp(1.9rem,5.2vh,2.5rem)":len<=22?"clamp(1.6rem,4.3vh,2.1rem)":"clamp(1.35rem,3.6vh,1.7rem)"; }
+const measureCtx = document.createElement("canvas").getContext("2d");
+function fitSize(text){
+  const h = innerHeight, maxPx = Math.min(58, Math.max(40, h * .075)), minPx = Math.min(28, Math.max(22, h * .03));
+  const cs = getComputedStyle(ed);
+  measureCtx.font = `${cs.fontWeight} ${maxPx}px ${cs.fontFamily}`;
+  const w = measureCtx.measureText(text).width, avail = ed.clientWidth - 6;
+  const px = w <= avail ? maxPx : Math.max(minPx, maxPx * avail / w);
+  ed.style.fontSize = px.toFixed(1) + "px";
+}
 function domPos(d){
   const w = document.createTreeWalker(ed, NodeFilter.SHOW_TEXT); let acc = 0, n;
   while ((n = w.nextNode())){ if (d <= acc + n.length) return [n, d - acc]; acc += n.length; }
@@ -274,7 +284,7 @@ function render(){
   view = buildView(expr);
   ed.classList.toggle("empty", !expr);
   ed.innerHTML = view.html;
-  ed.style.fontSize = sizeFor(plainExpr(expr||"0").length);
+  fitSize(plainExpr(expr||"0"));
   placeCaret();
   if (Math.max(selA,selB) >= expr.length) ed.scrollTop = ed.scrollHeight;
   pv.classList.remove("err"); pv.textContent = "";
@@ -392,6 +402,10 @@ function equals(){
 }
 
 /* ---------- Keypad ---------- */
+function haptic(){
+  try { if (window.AndroidBridge && window.AndroidBridge.haptic) { window.AndroidBridge.haptic(); return; } } catch(e){}
+  try { navigator.vibrate && navigator.vibrate(8); } catch(e){}
+}
 const MAIN = [
   ["C","red",clearAll,"Clear"],
   [ICON_BACK,"red",back,"Delete"],
@@ -408,7 +422,7 @@ function mkKey([label, cls, fn, aria]){
   if (label.startsWith("<svg")) b.innerHTML = label; else b.textContent = label;
   if (!fn) fn = () => digit(label);
   if (aria) b.setAttribute("aria-label", aria);
-  b.addEventListener("pointerdown", e => e.preventDefault());
+  b.addEventListener("pointerdown", e => { e.preventDefault(); haptic(); });
   b.addEventListener("click", () => {
     if (fn === equals) equals();
     else if (fn === clearAll){ clearAll(); if (ed !== document.activeElement) ed.focus({ preventScroll:true }); render(); }
@@ -501,7 +515,7 @@ function rowFor(i){
   const h = history[i], frag = document.createDocumentFragment();
   if (i===0 || dayKey(history[i-1].ts) !== dayKey(h.ts)){ const d=document.createElement("div"); d.className="hday"; d.textContent=dayLabel(h.ts); frag.appendChild(d); }
   const row = document.createElement("div"); row.className="hrow"; row.setAttribute("role","button"); row.tabIndex = 0;
-  row.innerHTML = `<div class="hx">${esc(plainExpr(h.expr))}</div><div class="hr">=${esc(fmtNum(h.value))}</div>`;
+  row.innerHTML = `<div class="hx">${wrapExpr(h.expr)}</div><div class="hr">=${esc(fmtNum(h.value))}</div>`;
   onLongPress(row, e => e.target.closest(".hx") ? plainExpr(h.expr) : fmtNum(h.value), e => {
     closeHistory();
     if (e.target.closest(".hx")) { expr = h.expr; justEval = false; selA = selB = expr.length; ed.focus({ preventScroll:true }); render(); }
@@ -561,6 +575,9 @@ window.__onBack = () => {
   if (!$("history").hidden){ closeHistory(); return true; }
   return false;
 };
+
+addEventListener("resize", () => fitSize(plainExpr(expr||"0")));
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => fitSize(plainExpr(expr||"0")));
 
 render(); loadHistory();
 })();

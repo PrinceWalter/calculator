@@ -5,6 +5,7 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.res.Configuration
 import android.os.Bundle
+import android.view.HapticFeedbackConstants
 import android.webkit.JavascriptInterface
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
@@ -91,6 +92,12 @@ class MainActivity : AppCompatActivity() {
         fun copy(text: String) {
             val cm = getSystemService(ClipboardManager::class.java)
             cm.setPrimaryClip(ClipData.newPlainText("Result", text))
+        }
+
+        // A short keypad tick, the same feel as the phone's own keyboard
+        @JavascriptInterface
+        fun haptic() {
+            web.post { web.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP) }
         }
     }
 }
