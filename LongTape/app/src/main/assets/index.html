@@ -9,9 +9,9 @@ try { var t = new URLSearchParams(location.search).get("theme"); if (t) document
 </script>
 <title>Long Tape Calculator</title>
 <style>
-@font-face{font-family:"Sora";font-weight:300;font-style:normal;font-display:swap;src:url("fonts/sora-latin-300-normal.woff2") format("woff2")}
-@font-face{font-family:"Sora";font-weight:400;font-style:normal;font-display:swap;src:url("fonts/sora-latin-400-normal.woff2") format("woff2")}
-@font-face{font-family:"Sora";font-weight:500;font-style:normal;font-display:swap;src:url("fonts/sora-latin-500-normal.woff2") format("woff2")}
+@font-face{font-family:"Roboto";font-weight:300;font-style:normal;font-display:swap;src:url("fonts/roboto-latin-300-normal.woff2") format("woff2")}
+@font-face{font-family:"Roboto";font-weight:400;font-style:normal;font-display:swap;src:url("fonts/roboto-latin-400-normal.woff2") format("woff2")}
+@font-face{font-family:"Roboto";font-weight:500;font-style:normal;font-display:swap;src:url("fonts/roboto-latin-500-normal.woff2") format("woff2")}
 @font-face{font-family:"Manrope";font-weight:400;font-style:normal;font-display:swap;src:url("fonts/manrope-latin-400-normal.woff2") format("woff2")}
 @font-face{font-family:"Manrope";font-weight:500;font-style:normal;font-display:swap;src:url("fonts/manrope-latin-500-normal.woff2") format("woff2")}
 @font-face{font-family:"Manrope";font-weight:600;font-style:normal;font-display:swap;src:url("fonts/manrope-latin-600-normal.woff2") format("woff2")}
@@ -24,7 +24,7 @@ body{margin:0;font-size:14px}
   --accent:#17866d; --accent-fg:#ffffff; --danger:#d0483c;
   --b0:#17866d; --b1:#121a18; --b2:#b7791f;
   --gap:15px;
-  --f-num:"Sora", "Segoe UI", system-ui, sans-serif;
+  --f-num:"Roboto", "Segoe UI", system-ui, sans-serif;
   --f-ui:"Manrope", "Segoe UI", system-ui, sans-serif;
 }
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
@@ -51,22 +51,22 @@ button{font-family:inherit}
 .grow{flex:1}
 
 /* Display */
-.display{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;justify-content:space-between;gap:12px;padding:clamp(16px,10.5vh,100px) 2px clamp(12px,7vh,66px);overflow:hidden}
-.expr{font-family:var(--f-num);font-weight:400;flex:0 1 auto;text-align:right;line-height:1.18;word-break:normal;overflow-wrap:normal;overflow-y:auto;min-height:1.25em;font-variant-numeric:tabular-nums;outline:none;caret-color:var(--b0);-webkit-touch-callout:none;-webkit-user-select:text;user-select:text;white-space:pre-wrap}
+.display{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;justify-content:space-between;gap:12px;padding:clamp(6px,2.5vh,24px) 0 clamp(10px,4.5vh,40px);overflow:hidden}
+.expr{font-family:var(--f-num);font-weight:300;flex:0 1 auto;text-align:right;line-height:1.18;word-break:normal;overflow-wrap:normal;overflow-y:auto;min-height:1.25em;font-variant-numeric:tabular-nums;outline:none;caret-color:var(--b0);-webkit-touch-callout:none;-webkit-user-select:text;user-select:text;white-space:pre-wrap}
 .expr::selection,.expr *::selection{background:color-mix(in srgb, var(--b0) 35%, transparent)}
 .expr .op{color:var(--b0)}
 .n{white-space:nowrap}
 .expr .b0{color:var(--b0)} .expr .b1{color:var(--b1)} .expr .b2{color:var(--b2)}
 .expr .un{color:var(--muted)}
 .expr.empty:empty::before{content:"0";color:var(--muted)}
-.preview{flex:0 0 auto;font-family:var(--f-num);font-weight:400;font-size:min(30px, 7vw);color:var(--muted);text-align:right;min-height:1.3em;
+.preview{flex:0 0 auto;font-family:var(--f-num);font-weight:300;font-size:min(30px, 7vw);color:var(--muted);text-align:right;min-height:1.3em;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
 .preview.err{color:var(--danger);font-family:var(--f-ui);font-size:1.05rem;font-weight:600}
 
 /* Keypad */
 .pad{flex:0 0 auto;display:flex;flex-direction:column;gap:var(--gap)}
 .keys{position:relative;display:grid;grid-template-columns:repeat(4,1fr);gap:var(--gap)}
-.key{border:0;border-radius:999px;aspect-ratio:1;min-width:0;background:var(--key);color:var(--fg);font:300 clamp(1.4rem,3.7vh,2.05rem) var(--f-num);
+.key{border:0;border-radius:999px;aspect-ratio:1;min-width:0;background:var(--key);color:var(--fg);font:400 clamp(1.4rem,3.7vh,2.05rem) var(--f-num);
   display:grid;place-items:center;cursor:pointer;-webkit-user-select:none;user-select:none;transition:transform .07s, background .12s}
 @media (hover:hover){.key:hover{filter:brightness(1.1)}}
 .key:active{transform:scale(.93)}
@@ -260,10 +260,10 @@ const ed = $("expr");
 let view = { html:"", dispOf:[0] }, selA = 0, selB = 0;
 const measureCtx = document.createElement("canvas").getContext("2d");
 function fitSize(text){
-  const w0 = Math.min(innerWidth, 460), maxPx = Math.min(46, Math.max(34, w0 * .102)), minPx = Math.min(31, Math.max(24, w0 * .068));
+  const w0 = Math.min(innerWidth, 460), maxPx = Math.min(46, Math.max(34, w0 * .102)), minPx = Math.min(30, Math.max(22, w0 * .066));
   const cs = getComputedStyle(ed);
   measureCtx.font = `${cs.fontWeight} ${maxPx}px ${cs.fontFamily}`;
-  const w = measureCtx.measureText(text).width, avail = ed.clientWidth - 6;
+  const w = measureCtx.measureText(text).width, avail = ed.clientWidth - 4;
   const px = w <= avail ? maxPx : Math.max(minPx, maxPx * avail / w);
   ed.style.fontSize = px.toFixed(1) + "px";
 }
