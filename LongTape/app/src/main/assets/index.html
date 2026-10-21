@@ -380,7 +380,7 @@ document.addEventListener("selectionchange", () => {
   if (!sel.rangeCount || (sel.anchorNode !== ed && !ed.contains(sel.anchorNode))) return;
   const a = rawFromDisp(view, dispOffset(sel.anchorNode, sel.anchorOffset));
   const b = rawFromDisp(view, dispOffset(sel.focusNode, sel.focusOffset));
-  if (a !== selA || b !== selB){ selA = a; selB = b; if (justEval){ justEval = false; } }
+  if (a !== selA || b !== selB){ selA = a; selB = b; if (justEval){ justEval = false; } refreshEdMenu(); }
 });
 /* Run an edit at the cursor: the edit sees only the text before the cursor; a selection is replaced. */
 function act(fn){
@@ -583,6 +583,7 @@ function copyText(text){
   if (navigator.clipboard) navigator.clipboard.writeText(plain).then(() => toast("Copied"), () => toast("Couldn't copy here"));
 }
 /* Small menu shown on long-press: items are [label, action] */
+let edMenu = null, refreshEdMenu = () => {};
 function showMenu(x, y, items){
   const p = $("pop"); p.innerHTML = "";
   items.forEach(([label, fn]) => { const b = document.createElement("button"); b.type = "button"; b.textContent = label; b.setAttribute("role","menuitem");
@@ -616,10 +617,16 @@ function copyFromDisplay(){
 /* Long-press the calculation for Paste / Copy (a tap still places the cursor) */
 (() => {
   let timer = null, sx = 0, sy = 0, fired = false, moved = false, prevA = 0, prevB = 0, wasFocused = false;
-  const open = () => { timer = null; fired = true; haptic(); ed.focus({ preventScroll:true });
-    const items = [["Paste", pasteFromClipboard], ["Clipboard", enterKbMode]];
-    if (expr) items.push([selA !== selB ? "Copy" : "Copy all", copyFromDisplay]);
-    showMenu(sx, sy, items); };
+  const items = () => selA !== selB
+    ? [["Copy", copyFromDisplay]]
+    : [["Paste", pasteFromClipboard], ["Clipboard", enterKbMode]].concat(expr ? [["Copy all", copyFromDisplay]] : []);
+  const open = () => { timer = null; fired = true; haptic(); ed.focus({ preventScroll:true }); edMenu = { x: sx, y: sy, sel: selA !== selB }; showMenu(sx, sy, items()); };
+  /* if a selection appears (or goes away) while the menu is open, switch the menu to match */
+  refreshEdMenu = () => {
+    if (!edMenu || $("pop").hidden) return;
+    const hasSel = selA !== selB;
+    if (hasSel !== edMenu.sel){ edMenu.sel = hasSel; showMenu(edMenu.x, edMenu.y, items()); }
+  };
   ed.addEventListener("pointerdown", e => {
     sx = e.clientX; sy = e.clientY; fired = false; moved = false;
     prevA = selA; prevB = selB; wasFocused = document.activeElement === ed && $("pop").hidden;
