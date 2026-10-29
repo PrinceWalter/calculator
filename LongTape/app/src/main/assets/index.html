@@ -578,7 +578,7 @@ document.addEventListener("keydown", e => {
 
 /* ---------- Copy (long-press) ---------- */
 function copyText(text){
-  const plain = text.replace(/,/g,"").replace(/−/g,"-").replace(/^=\s*/,"");
+  const plain = text.replace(/−/g,"-").replace(/^=\s*/,"");   // keeps the thousands commas as shown
   if (window.AndroidBridge){ try { window.AndroidBridge.copy(plain); toast("Copied"); } catch(e){} return; }
   if (navigator.clipboard) navigator.clipboard.writeText(plain).then(() => toast("Copied"), () => toast("Couldn't copy here"));
 }
