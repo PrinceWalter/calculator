@@ -81,12 +81,12 @@ button{font-family:inherit}
   border-right:1px solid var(--line);padding-right:14px;box-sizing:border-box;display:flex;flex-direction:column;gap:12px;background:var(--bg)}
 .app.hist-open .keys .key:not(.col4){visibility:hidden}
 .hlist{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;-webkit-user-select:none;user-select:none;scrollbar-width:thin}
-.hday{font:700 .62rem var(--f-ui);letter-spacing:.1em;text-transform:uppercase;color:var(--muted);text-align:right;padding:8px 0 0}
-.hrow{display:flex;flex-direction:column;align-items:flex-end;gap:1px;padding:7px 0;cursor:pointer;border-radius:10px;font-family:var(--f-num);font-variant-numeric:tabular-nums}
+.hday{font:700 .7rem var(--f-ui);letter-spacing:.1em;text-transform:uppercase;color:var(--muted);text-align:right;padding:10px 0 0}
+.hrow{display:flex;flex-direction:column;align-items:flex-end;gap:3px;padding:11px 0;cursor:pointer;border-radius:10px;font-family:var(--f-num);font-variant-numeric:tabular-nums}
 @media (hover:hover){.hrow:hover{background:var(--key)}}
 .hrow:active{background:var(--key)}
-.hx{color:var(--fg);font-size:clamp(.88rem,1.9vh,1rem);letter-spacing:-.01em;text-align:right;overflow-wrap:normal;line-height:1.28}
-.hr{color:var(--b0);font-size:clamp(1.08rem,2.5vh,1.25rem);letter-spacing:-.01em;text-align:right;overflow-wrap:anywhere}
+.hx{color:var(--fg);font-size:clamp(1.05rem,2.6vh,1.4rem);letter-spacing:-.01em;text-align:right;overflow-wrap:normal;line-height:1.28}
+.hr{color:var(--b0);font-size:clamp(1.3rem,3vh,1.6rem);letter-spacing:-.01em;text-align:right;white-space:nowrap;max-width:100%}
 .hempty{margin:auto 0;color:var(--muted);text-align:center;font-size:.92rem;line-height:1.5;padding:0 8px}
 .bar .tools{display:flex;align-items:center;gap:4px;flex:1;min-width:0}
 .ib.on{color:var(--b0)}
@@ -131,8 +131,8 @@ button{font-family:inherit}
 .confirm .pill{padding:11px 18px;font-size:.9rem}
 .more{text-align:center;color:var(--muted);font-size:.75rem;padding:6px}
 
-.hlabel{align-self:flex-start;max-width:100%;display:flex;align-items:center;gap:5px;color:var(--b2);font:700 .78rem var(--f-ui);letter-spacing:.01em;line-height:1.2;padding-bottom:2px;overflow-wrap:anywhere}
-.hlabel svg{flex:0 0 auto;width:12px;height:12px}
+.hlabel{align-self:flex-start;max-width:100%;display:flex;align-items:center;gap:5px;color:var(--b2);font:700 .9rem var(--f-ui);letter-spacing:.01em;line-height:1.2;padding-bottom:3px;overflow-wrap:anywhere}
+.hlabel svg{flex:0 0 auto;width:14px;height:14px}
 .sheet{position:fixed;inset:0;z-index:35;background:rgb(0 0 0 / .45);display:flex;justify-content:center;align-items:flex-start;padding:16vh max(16px, env(safe-area-inset-right, 0px)) 16px max(16px, env(safe-area-inset-left, 0px))}
 .sheet .card{width:min(360px,100%);background:var(--key);border-radius:20px;padding:18px;display:flex;flex-direction:column;gap:12px;box-shadow:0 12px 32px rgb(0 0 0 / .4)}
 .sheet h2{margin:0;font:700 1.05rem var(--f-ui);color:var(--fg)}
@@ -727,6 +727,8 @@ function renderHistoryKeepScroll(top){
     firstShown = start; list.insertBefore(frag, list.firstChild);
     if (firstShown > 0) list.insertBefore(moreNote(), list.firstChild);
   }
+  fitResults();
+  scrollGen++;   // cancel the jump to the newest entry; stay where you were
   list.scrollTop = top;
 }
 function rowFor(k){
@@ -790,7 +792,7 @@ function renderHistory(){
     firstShown = Math.max(0, shown.length - PAGE);
     if (firstShown > 0) list.appendChild(moreNote());
     for (let k = firstShown; k < shown.length; k++) list.appendChild(rowFor(k));
-    list.scrollTop = list.scrollHeight;
+    scrollHistoryToEnd();
   }
   renderFoot();
 }
@@ -804,6 +806,7 @@ $("hlist").addEventListener("scroll", () => {
     firstShown = start;
     list.insertBefore(frag, list.firstChild);
     if (firstShown > 0) list.insertBefore(moreNote(), list.firstChild);
+    fitResults();
     list.scrollTop += list.scrollHeight - oldH;
   }
 });
@@ -820,6 +823,23 @@ function renderFoot(){
   } else f.innerHTML = "";
 }
 function setHistIcon(open){ $("histBtn").innerHTML = open ? ICON_PAD : ICON_HIST; $("histBtn").setAttribute("aria-label", open ? "Show keypad" : "Show history"); }
+function fitResults(){
+  document.querySelectorAll("#hlist .hr:not([data-fit])").forEach(el => {
+    el.dataset.fit = "1";
+    if (el.scrollWidth > el.clientWidth + 1){
+      const px = parseFloat(getComputedStyle(el).fontSize);
+      el.style.fontSize = Math.max(12, px * el.clientWidth / el.scrollWidth * 0.98).toFixed(1) + "px";
+    }
+  });
+}
+let scrollGen = 0;
+function scrollHistoryToEnd(){
+  const list = $("hlist"), gen = ++scrollGen;
+  const go = () => { fitResults(); if (gen === scrollGen) list.scrollTop = list.scrollHeight; };
+  go(); requestAnimationFrame(() => { go(); requestAnimationFrame(go); });
+  setTimeout(go, 120);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(go);
+}
 function openHistory(){ exitKbMode(); $("history").hidden=false; $("app").classList.add("hist-open"); $("histTools").hidden=false; setHistIcon(true); confirming=false; renderHistory(); }
 function closeHistory(){ $("history").hidden=true; $("app").classList.remove("hist-open"); $("histTools").hidden=true; closeSearch(); clearFilters(); setHistIcon(false); }
 function clearFilters(){ query = ""; $("q").value = ""; dateF = null; $("searchBtn").classList.remove("on"); $("dateBtn").classList.remove("on"); }
